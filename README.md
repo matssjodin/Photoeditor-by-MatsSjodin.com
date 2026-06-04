@@ -69,15 +69,29 @@ expose only `VITE_`-prefixed values to the client.
 
 ## Deployment
 
-The build targets **Cloudflare Workers** by default (configured in the Lovable Vite preset).
+The build targets **Cloudflare Workers**: `dist/server/server.js` is the SSR worker and
+`dist/client/` holds the static assets (served by Workers Assets, falling through to the
+worker for SSR routes). Config lives in [`wrangler.toml`](./wrangler.toml).
 
 ```bash
-bun run build      # outputs to dist/ (client + server)
+bun run build                  # outputs dist/client + dist/server
+bunx wrangler deploy --dry-run # validate the config without deploying
+bunx wrangler deploy           # deploy (needs a Cloudflare account_id + auth)
 ```
 
-Deploy the produced server bundle to Cloudflare Workers (e.g. via Wrangler or the Cloudflare
-dashboard / CI). Security headers (CSP, HSTS, X-Frame-Options, etc.) are applied in
-`src/start.ts` request middleware. CI runs typecheck → lint → test → build on every push/PR
+**Automated deploys** run via `.github/workflows/deploy.yml` on a manual trigger or a
+version tag (`git tag v1.0.0 && git push --tags`). Add these repository secrets first:
+
+| Secret | Purpose |
+| ------ | ------- |
+| `CLOUDFLARE_API_TOKEN`  | Token with the "Edit Cloudflare Workers" permission |
+| `CLOUDFLARE_ACCOUNT_ID` | Your Cloudflare account id                          |
+
+After the first deploy, point `photoeditor.matssjodin.com` at the worker (Workers & Pages →
+the worker → Settings → Domains & Routes).
+
+Security headers (CSP, HSTS, X-Frame-Options, etc.) are applied in `src/start.ts` request
+middleware. CI runs typecheck → lint → test → build on every push/PR
 (`.github/workflows/ci.yml`).
 
 ## Project structure

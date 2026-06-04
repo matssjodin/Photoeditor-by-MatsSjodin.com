@@ -8,7 +8,7 @@ A single-page, **fully client-side image editor** ("Lumen", aka Canvas Studio Pr
 
 Scaffolded by **Lovable**. The stack is TanStack Start (React 19 full-stack framework) + Vite 7 + Tailwind v4 + shadcn/ui, with Bun as the package manager/runtime.
 
-**Repository:** `git@github.com:matssjodin/photoeditor.matssjodin.com.git` (default branch `main`).
+**Repository:** `git@github.com:matssjodin/Photoeditor-by-MatsSjodin.com.git` (default branch `main`).
 
 ## Commands
 

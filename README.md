@@ -27,39 +27,41 @@ there is no backend, no upload, no account, and no tracking of your files.
 
 ## Tech stack
 
-| Area        | Choice                                                              |
-| ----------- | ------------------------------------------------------------------- |
-| Framework   | [TanStack Start](https://tanstack.com/start) (React 19, SSR shell)  |
-| Build       | Vite 7                                                              |
-| Styling     | Tailwind CSS v4 (CSS-first) + [shadcn/ui](https://ui.shadcn.com)    |
-| Language    | TypeScript (strict)                                                 |
-| Runtime/PM  | [Bun](https://bun.sh)                                               |
-| Deploy      | Cloudflare Workers (Nitro, via `@lovable.dev/vite-tanstack-config`) |
-| Editor core | Custom `<canvas>` engine + `useSyncExternalStore` global store      |
+| Area        | Choice                                                             |
+| ----------- | ------------------------------------------------------------------ |
+| Framework   | [TanStack Start](https://tanstack.com/start) (React 19, SSR shell) |
+| Build       | Vite 7                                                             |
+| Styling     | Tailwind CSS v4 (CSS-first) + [shadcn/ui](https://ui.shadcn.com)   |
+| Language    | TypeScript (strict)                                                |
+| Runtime/PM  | Node.js 22 + npm                                                   |
+| Tests       | [Vitest](https://vitest.dev) (+ `@napi-rs/canvas` polyfill)        |
+| Deploy      | Node server (Nitro `node-server`) in Docker — e.g. Coolify         |
+| Editor core | Custom `<canvas>` engine + `useSyncExternalStore` global store     |
 
 The image editor itself is plain Canvas 2D — no WebGL or third-party image library.
 
 ## Getting started
 
-Prerequisites: **[Bun](https://bun.sh) ≥ 1.3**.
+Prerequisites: **Node.js ≥ 22** and npm.
 
 ```bash
-bun install        # install dependencies
-bun run dev        # start the dev server (http://localhost:3000)
+npm install        # install dependencies
+npm run dev        # start the dev server (http://localhost:8080)
 ```
 
 ### Scripts
 
-| Script              | What it does                              |
-| ------------------- | ----------------------------------------- |
-| `bun run dev`       | Vite dev server with HMR                  |
-| `bun run build`     | Production build (client + SSR via Nitro) |
-| `bun run preview`   | Preview the production build              |
-| `bun run typecheck` | `tsc --noEmit`                            |
-| `bun run lint`      | ESLint (Prettier-integrated)              |
-| `bun run format`    | Prettier write                            |
-| `bun test`          | Unit tests (Bun test runner)              |
-| `bun run og`        | Regenerate the social share image         |
+| Script              | What it does                                 |
+| ------------------- | -------------------------------------------- |
+| `npm run dev`       | Vite dev server with HMR                     |
+| `npm run build`     | Production build → `.output/` (client + SSR) |
+| `npm start`         | Run the built server (`.output/server`)      |
+| `npm run preview`   | Preview the production build                 |
+| `npm run typecheck` | `tsc --noEmit`                               |
+| `npm run lint`      | ESLint (Prettier-integrated)                 |
+| `npm run format`    | Prettier write                               |
+| `npm test`          | Unit tests (Vitest)                          |
+| `npm run og`        | Regenerate the social share image            |
 
 ## Environment variables
 
@@ -75,30 +77,33 @@ If you add server logic later, follow the patterns in `src/lib/config.server.ts`
 
 ## Deployment
 
-The build targets **Cloudflare Workers**: `dist/server/server.js` is the SSR worker and
-`dist/client/` holds the static assets (served by Workers Assets, falling through to the
-worker for SSR routes). Config lives in [`wrangler.toml`](./wrangler.toml).
+The build produces a **standalone Node server** via Nitro's `node-server` preset:
+`npm run build` → `.output/`, then `node .output/server/index.mjs` (alias: `npm start`),
+which listens on `PORT` (default 3000). A multi-stage [`Dockerfile`](./Dockerfile) packages
+it for any container host.
+
+### Coolify
+
+1. **New Resource → Application**, source = this Git repository.
+2. Build pack: **Dockerfile** (the repo's `Dockerfile` is detected automatically).
+3. Set the **port to `3000`** (Coolify maps it to the public domain).
+4. Attach the domain `photoeditor.matssjodin.com` and let Coolify provision TLS.
+5. _(Optional)_ enable analytics by adding a **build-time** variable
+   `VITE_PLAUSIBLE_DOMAIN=photoeditor.matssjodin.com` (Vite inlines it at build, so it must
+   be a build arg/variable, not just runtime).
+6. Deploy. Coolify rebuilds the image and runs the container on each push.
+
+Test the exact production image locally:
 
 ```bash
-bun run build                  # outputs dist/client + dist/server
-bunx wrangler deploy --dry-run # validate the config without deploying
-bunx wrangler deploy           # deploy (needs a Cloudflare account_id + auth)
+docker build -t photo-editor .
+docker run --rm -p 3000:3000 photo-editor
+# → http://localhost:3000
 ```
 
-**Automated deploys** run via `.github/workflows/deploy.yml` on a manual trigger or a
-version tag (`git tag v1.0.0 && git push --tags`). Add these repository secrets first:
-
-| Secret                  | Purpose                                             |
-| ----------------------- | --------------------------------------------------- |
-| `CLOUDFLARE_API_TOKEN`  | Token with the "Edit Cloudflare Workers" permission |
-| `CLOUDFLARE_ACCOUNT_ID` | Your Cloudflare account id                          |
-
-After the first deploy, point `photoeditor.matssjodin.com` at the worker (Workers & Pages →
-the worker → Settings → Domains & Routes).
-
 Security headers (CSP, HSTS, X-Frame-Options, etc.) are applied in `src/start.ts` request
-middleware. CI runs typecheck → lint → test → build on every push/PR
-(`.github/workflows/ci.yml`).
+middleware and travel with the SSR responses regardless of host. CI runs typecheck → lint →
+test → build on every push/PR (`.github/workflows/ci.yml`).
 
 ## Project structure
 
@@ -116,6 +121,7 @@ src/
 public/            # robots.txt, sitemap.xml, og-image.png
 scripts/           # build-time tooling (OG image generation)
 test/              # test setup (canvas polyfill)
+Dockerfile         # multi-stage Node server image (for Coolify / any container host)
 ```
 
 See [`CLAUDE.md`](./CLAUDE.md) for a deeper architecture tour.

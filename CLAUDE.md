@@ -12,23 +12,21 @@ Scaffolded by **Lovable**. The stack is TanStack Start (React 19 full-stack fram
 
 ## Commands
 
-Use **Bun** (`bun.lock`, `bunfig.toml`), not npm/pnpm.
+Use **npm** (`package-lock.json`). Node.js ≥ 22.
 
 ```bash
-bun install            # install deps
-bun run dev            # vite dev server
-bun run build          # production build (vite + nitro)
-bun run build:dev      # build in development mode
-bun run preview        # preview production build
-bun run typecheck      # tsc --noEmit
-bun run lint           # eslint .
-bun run format         # prettier --write .
-bun test               # Bun test runner (*.test.ts)
+npm install            # install deps
+npm run dev            # vite dev server (port 8080, set by the Lovable preset)
+npm run build          # production build → .output/ (vite + nitro node-server)
+npm start              # run the built server: node .output/server/index.mjs
+npm run preview        # preview production build
+npm run typecheck      # tsc --noEmit
+npm run lint           # eslint .
+npm run format         # prettier --write .
+npm test               # Vitest (*.test.ts)
 ```
 
-Full green-bar check before committing: `bun run typecheck && bun run lint && bun test && bun run build`. Tests run under Bun's runtime (no DOM/canvas), so they cover pure logic only — see `src/editor/types.test.ts`. Canvas-dependent code (`selection.ts`, store history) is not unit-tested for lack of a 2D context in the test runtime.
-
-`bunfig.toml` enforces a 24h supply-chain guard (`minimumReleaseAge`) — newly published package versions are skipped. Adding a package to `minimumReleaseAgeExcludes` bypasses it; confirm with the user before doing so.
+Full green-bar check before committing: `npm run typecheck && npm run lint && npm test && npm run build`. Tests run under **Vitest** with a `@napi-rs/canvas` polyfill (`test/setup.ts`, wired via `vitest.config.ts`), so the real canvas algorithms are exercised — `selection.ts` mask math and store undo/redo are covered, not just pure helpers.
 
 ## Editor architecture (the core of the app)
 
@@ -54,9 +52,11 @@ When adding a feature: a new **tool** = add to `ToolId` in `types.ts`, a button 
 
 - **File-based routing** in `src/routes/` — see `src/routes/README.md` for the full table. `routeTree.gen.ts` is auto-generated; never edit by hand. `__root.tsx` is the app shell (keep `<Outlet />`). This is **not** Next.js/Remix — do not create `src/pages/`, `app/layout.tsx`, or use RSC.
 
-- **`vite.config.ts` wraps `@lovable.dev/vite-tanstack-config`.** That preset already includes `tanstackStart`, `viteReact`, `tailwindcss`, `tsConfigPaths`, `nitro` (Cloudflare target), the `@` path alias, dedupe, and error-logging plugins. **Do not re-add these plugins manually** — duplicates break the build. Pass extra config through `defineConfig({ vite: { ... } })`.
+- **`vite.config.ts` wraps `@lovable.dev/vite-tanstack-config`.** That preset already includes `tanstackStart`, `viteReact`, `tailwindcss`, `tsConfigPaths`, `nitro`, the `@` path alias, dedupe, and error-logging plugins. **Do not re-add these plugins manually** — duplicates break the build. Pass extra config through `defineConfig({ vite: { ... } })`. We override the Nitro target to `node-server` (`nitro: { preset: "node-server" }`) so the build is a standalone Node server (`.output/server/index.mjs`) for Docker/Coolify; the preset's default is Cloudflare Workers, and it force-ignores the override only inside the Lovable sandbox (`LOVABLE_SANDBOX=1` / `DEV_SERVER__PROJECT_PATH` set).
 
-- **Server logic** (if ever needed) uses `createServerFn` (see `src/lib/api/example.functions.ts`), not Supabase Edge Functions. Server-only code goes in `*.server.ts` files (the `server-only` npm package is blocked by ESLint). On the Cloudflare target, env binds per-request — read `process.env` **inside** handlers, never at module scope. `VITE_`-prefixed vars are public and reach the client; never put secrets there.
+- **Deployment:** `npm run build` → `.output/`; runs as `node .output/server/index.mjs` (port `PORT`, default 3000). The multi-stage `Dockerfile` packages this for Coolify or any container host. `VITE_PLAUSIBLE_DOMAIN` is a **build-time** var (Vite inlines it) — pass it as a Docker `--build-arg`, not just a runtime env.
+
+- **Server logic** (if ever needed) uses `createServerFn` (see `src/lib/api/example.functions.ts`), not Supabase Edge Functions. Server-only code goes in `*.server.ts` files (the `server-only` npm package is blocked by ESLint). Read `process.env` **inside** handlers, not at module scope (the `config.server.ts` comment explains why on edge targets). `VITE_`-prefixed vars are public and reach the client; never put secrets there.
 
 - `src/server.ts` and `src/start.ts` are custom SSR error wrappers (catch h3-swallowed 500s, render `error-page.ts`). `start.ts` also adds the **security-headers request middleware** (CSP, HSTS, X-Frame-Options, etc.) — the CSP there must be updated if you add new external origins (e.g. analytics, a new font/CDN host) or it will silently block them. `src/lib/lovable-error-reporting.ts` / `error-capture.ts` are Lovable's error telemetry — leave them in place.
 

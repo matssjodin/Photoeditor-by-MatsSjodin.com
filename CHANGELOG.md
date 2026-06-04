@@ -43,11 +43,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **Toolchain: Bun → npm.** Regenerated `package-lock.json`, moved scripts/CI to
+  npm + Node 22, removed `bunfig.toml`. Tests migrated from `bun:test` to **Vitest**
+  (`vitest.config.ts`); the `@napi-rs/canvas` polyfill now loads via Vitest `setupFiles`.
+- **Deploy target: Cloudflare Workers → self-hosted Node server.** Build now uses the
+  Nitro `node-server` preset (`.output/server/index.mjs`); added a multi-stage
+  `Dockerfile` + `.dockerignore` for **Coolify** (or any container host). Verified by
+  building and running the image end-to-end (SSR, security headers, and static assets).
 - Rebranded from the Lovable template placeholder ("Lovable App" / "Lumen" /
   "Canvas Studio Pro") to **Photo Editor by MatsSjodin.com** across titles, meta,
   and the in-app wordmark.
 - Removed the unused `recharts` dependency and the dead `chart`/`sidebar` components
   and `use-mobile` hook.
+
+### Removed
+
+- Cloudflare Workers config (`wrangler.toml`) and its deploy workflow, superseded by
+  the Docker/Coolify Node-server deployment.
 - Layer thumbnails are memoized, no longer regenerating a data URL on every render.
 - Patched the `@tanstack/start-server-core` advisory (GHSA-9m65-766c-r333) and
   formatted the entire codebase with Prettier (lint: 272 errors → 0).

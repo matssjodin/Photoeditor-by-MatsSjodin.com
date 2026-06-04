@@ -1,0 +1,18 @@
+# Rebuilt inside the image / not needed in the build context.
+node_modules
+.output
+dist
+.git
+.github
+.vscode
+.idea
+*.log
+.env
+.env.*
+.dev.vars
+.wrangler
+Dockerfile
+.dockerignore
+README.md
+AUDIT.md
+CHANGELOG.md

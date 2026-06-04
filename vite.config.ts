@@ -12,4 +12,8 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  // Build a standalone Node server (.output/server/index.mjs) for self-hosting on
+  // Coolify/Docker instead of the preset's default Cloudflare Workers target.
+  // (Ignored inside the Lovable sandbox, which forces its own target.)
+  nitro: { preset: "node-server" },
 });

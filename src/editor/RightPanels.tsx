@@ -14,6 +14,7 @@ import {
   Bold,
   Italic,
 } from "lucide-react";
+import { useMemo } from "react";
 import { actions, useEditor } from "./store";
 import { DEFAULT_ADJUSTMENTS, type Adjustments, type BlendMode, type Layer } from "./types";
 import { FONTS } from "./fonts";
@@ -301,6 +302,9 @@ function LayerRow({ layer, active }: { layer: Layer; active: boolean }) {
       }
     >
       <button
+        type="button"
+        aria-label={layer.visible ? "Hide layer" : "Show layer"}
+        aria-pressed={layer.visible}
         onClick={(e) => {
           e.stopPropagation();
           actions.updateLayer(layer.id, { visible: !layer.visible });
@@ -314,6 +318,9 @@ function LayerRow({ layer, active }: { layer: Layer; active: boolean }) {
       </div>
       <span className="flex-1 truncate">{layer.name}</span>
       <button
+        type="button"
+        aria-label={layer.locked ? "Unlock layer" : "Lock layer"}
+        aria-pressed={layer.locked}
         onClick={(e) => {
           e.stopPropagation();
           actions.updateLayer(layer.id, { locked: !layer.locked });
@@ -327,20 +334,25 @@ function LayerRow({ layer, active }: { layer: Layer; active: boolean }) {
 }
 
 function LayerThumb({ layer }: { layer: Layer }) {
-  if (layer.type !== "raster") return null;
-  // Use a tiny snapshot drawn into a 32x32 div via dataURL? Cheaper: render once via background.
-  // To avoid perf issues we just sample current bitmap on each render — small (32px).
-  const url = (() => {
+  const s = useEditor();
+  const canvas = layer.type === "raster" ? layer.canvas : null;
+  // Regenerating the data URL is relatively expensive (canvas alloc + toDataURL),
+  // so cache it and only recompute when the bitmap could have changed: a new
+  // canvas identity (resize/crop/rotate) or a store mutation (paint, filter bake).
+  const url = useMemo(() => {
+    if (!canvas) return "";
     try {
       const c = document.createElement("canvas");
       c.width = 32;
       c.height = 32;
-      c.getContext("2d")!.drawImage(layer.canvas, 0, 0, 32, 32);
+      c.getContext("2d")!.drawImage(canvas, 0, 0, 32, 32);
       return c.toDataURL();
     } catch {
       return "";
     }
-  })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canvas, s.version]);
+  if (!canvas) return null;
   return <img src={url} className="h-full w-full rounded object-cover" alt="" />;
 }
 
@@ -561,7 +573,9 @@ function IconBtn({
 }) {
   return (
     <button
+      type="button"
       title={title}
+      aria-label={title}
       onClick={onClick}
       className="flex h-7 w-7 items-center justify-center rounded border border-border bg-secondary text-muted-foreground hover:bg-accent hover:text-foreground"
     >

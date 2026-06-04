@@ -7,7 +7,7 @@ import { Toolbar } from "./Toolbar";
 import { RightPanels } from "./RightPanels";
 import { EditorCanvas } from "./EditorCanvas";
 import { actions, useEditor } from "./store";
-import { ImagePlus, FilePlus2 } from "lucide-react";
+import { ImagePlus, FilePlus2, Monitor } from "lucide-react";
 
 export function Editor() {
   const s = useEditor();
@@ -72,6 +72,27 @@ export function Editor() {
           )}
         </main>
         <RightPanels />
+      </div>
+      <MobileNotice />
+    </div>
+  );
+}
+
+/**
+ * The editor relies on fixed-width panels and precise pointer input, so it isn't
+ * usable on phones. Rather than break silently, cover small viewports with a
+ * clear "use a larger screen" message. Shown below the `md` breakpoint.
+ */
+function MobileNotice() {
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-background px-6 text-center md:hidden">
+      <div className="flex max-w-xs flex-col items-center gap-3">
+        <Monitor className="h-10 w-10 text-primary" />
+        <h1 className="text-lg font-semibold">Best on a larger screen</h1>
+        <p className="text-sm text-muted-foreground">
+          Photo Editor needs a tablet or desktop-sized screen and a mouse or trackpad. Open this
+          page on a bigger device to start editing.
+        </p>
       </div>
     </div>
   );

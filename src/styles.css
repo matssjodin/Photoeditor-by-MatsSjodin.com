@@ -94,6 +94,13 @@
       sans-serif;
     overflow: hidden;
   }
+  /* Keyboard-visible focus ring for every interactive control. Mouse clicks
+     don't trigger :focus-visible, so this stays out of the way for pointer users. */
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
 }
 
 /* Checkerboard for transparency */

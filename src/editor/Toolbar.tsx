@@ -109,7 +109,9 @@ export function Toolbar() {
         <Popover>
           <PopoverTrigger asChild>
             <button
+              type="button"
               title="Foreground color"
+              aria-label={`Foreground color, currently ${s.tool.brushColor}`}
               className="h-8 w-8 rounded-full border-2 border-border shadow-inner ring-1 ring-black/20 transition hover:scale-105"
               style={{ background: s.tool.brushColor }}
             />
@@ -130,7 +132,9 @@ export function Toolbar() {
                 {SWATCHES.map((c) => (
                   <button
                     key={c}
+                    type="button"
                     title={c}
+                    aria-label={`Use color ${c}`}
                     onClick={() => actions.setTool({ brushColor: c })}
                     className={
                       "h-5 w-5 rounded-full border transition hover:scale-110 " +
@@ -172,7 +176,10 @@ function ToolButton({
 }) {
   return (
     <button
+      type="button"
       title={title}
+      aria-label={title}
+      aria-pressed={active}
       onClick={onClick}
       className={
         "flex h-10 w-10 items-center justify-center rounded-md transition " +

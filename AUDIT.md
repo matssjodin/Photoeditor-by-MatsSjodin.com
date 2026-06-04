@@ -170,3 +170,45 @@ Build output: client `index` 350 KB (111 KB gz) + 139 KB chunk (46 KB gz), CSS 7
   minimatch upstream. `bun audit` for production deps: **clean**.
 
 **Batch A verification:** lint ✅ 0 errors · typecheck ✅ · build ✅ clean · prod audit ✅.
+
+### Product decisions (from stakeholder)
+
+- **Mobile:** desktop-only + a notice on small screens (not full responsive).
+- **Name:** "Photo Editor by MatsSjodin.com".
+- **Fonts:** keep the Google Fonts CDN (privacy tradeoff accepted; CSP allows it).
+- **License:** all rights reserved (proprietary — no OSS license).
+
+### Batch B — done
+
+- **SEC-1 ✅** Security-headers request middleware in `start.ts` (CSP, HSTS,
+  X-Frame-Options, X-Content-Type-Options, Referrer-Policy, COOP, Permissions-Policy).
+  **Verified live** on the running SSR response — exact CSP applied, scoped to allow the
+  Google Fonts origins + canvas `blob:`/`data:` images + SSR inline script/style.
+- **BIZ-1 ✅** Rebranded across `__root.tsx`, `index.tsx`, `TopBar.tsx`; added canonical,
+  `og:url`/`og:site_name`, `theme-color`, `robots.txt`, `sitemap.xml`; removed the stale
+  external lovable.app `og:image`. **Verified** in rendered SSR head.
+- **UX-1 ✅** Single-key tool shortcuts (V/M/L/W/B/E/G/I/T/C), guarded against modifiers,
+  form-field focus, and in-canvas text editing.
+- **UX-3 ✅** `MobileNotice` overlay below the `md` breakpoint.
+- **UX-4 ✅** Global `:focus-visible` ring + `aria-label`/`aria-pressed` on icon-only
+  controls (tools, swatches, layer visibility/lock, colour trigger).
+- **PERF-3 ✅** `LayerThumb` data URL memoized on `[canvas, version]`.
+- **CQ-2 ✅** Bun unit tests for `buildFilterString` + `uid` (8 tests). `@types/bun`
+  added so `bun:test` typechecks. Canvas-dependent code remains untested (no 2D context
+  in the Bun test runtime) — see Remaining.
+- **OPS-1 ✅** GitHub Actions CI: typecheck → lint → test → build.
+- **DOC-1/2/3 ✅** `README.md`, `.env.example`, `LICENSE` (proprietary), `CHANGELOG.md`;
+  `CLAUDE.md` updated (scripts, security-header note, test caveats).
+- **Plus:** `.gitattributes` for LF normalization.
+
+**Batch B verification:** typecheck ✅ · lint ✅ 0 errors · test ✅ 8/8 · build ✅ clean ·
+runtime ✅ (SSR renders 200 with correct head + security headers; checked on the app's real
+dev port 8080 — an unrelated Next.js app on :3000 initially produced misleading output).
+
+### Deferred / not done (need decision or larger effort) — see Remaining in delivery report
+
+- PERF-2/CQ-3 (remove unused `recharts`/`chart.tsx`/shadcn primitives) — not done; low risk
+  but a cleanup judgment call, left for confirmation.
+- ARCH-2 (`config.server.ts`/`example.functions.ts` stubs) — kept as documented examples.
+- SEC-3 (font privacy) — stakeholder chose to keep Google CDN.
+- PERF-4 (dirty-layer compositing) — backlog; only matters at large doc/layer counts.

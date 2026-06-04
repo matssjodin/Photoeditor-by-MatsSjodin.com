@@ -2,12 +2,29 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { actions, useEditor } from "./store";
-import { buildFilterString, makeCanvas, type Layer, type RasterLayer, type Selection, type TextLayer } from "./types";
-import { combineMasks, featherMask, maskFromPolygon, maskFromWand, selectionFromMask } from "./selection";
+import {
+  buildFilterString,
+  makeCanvas,
+  type Layer,
+  type RasterLayer,
+  type Selection,
+  type TextLayer,
+} from "./types";
+import {
+  combineMasks,
+  featherMask,
+  maskFromPolygon,
+  maskFromWand,
+  selectionFromMask,
+} from "./selection";
 import { FONTS } from "./fonts";
 import { Bold, Italic, Check } from "lucide-react";
 
-interface ViewState { zoom: number; tx: number; ty: number; }
+interface ViewState {
+  zoom: number;
+  tx: number;
+  ty: number;
+}
 
 const MIN_ZOOM = 0.05;
 const MAX_ZOOM = 16;
@@ -104,7 +121,8 @@ export function EditorCanvas() {
       ctx.setLineDash([6 / view.zoom, 4 / view.zoom]);
       ctx.beginPath();
       ctx.moveTo(lassoPreview[0].x, lassoPreview[0].y);
-      for (let i = 1; i < lassoPreview.length; i++) ctx.lineTo(lassoPreview[i].x, lassoPreview[i].y);
+      for (let i = 1; i < lassoPreview.length; i++)
+        ctx.lineTo(lassoPreview[i].x, lassoPreview[i].y);
       ctx.stroke();
     }
   }, [doc.selection, doc.width, doc.height, view.zoom, s.version, lassoPreview]);
@@ -112,18 +130,33 @@ export function EditorCanvas() {
   // Keyboard: space-to-pan, undo/redo, delete selection
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
-      if (e.code === "Space") { setSpaceDown(true); e.preventDefault(); }
+      if (e.code === "Space") {
+        setSpaceDown(true);
+        e.preventDefault();
+      }
       const meta = e.metaKey || e.ctrlKey;
       if (meta && e.key.toLowerCase() === "z") {
         e.preventDefault();
-        if (e.shiftKey) actions.redo(); else actions.undo();
+        if (e.shiftKey) actions.redo();
+        else actions.undo();
       }
-      if (meta && e.key.toLowerCase() === "y") { e.preventDefault(); actions.redo(); }
-      if (meta && e.key.toLowerCase() === "d") { e.preventDefault(); actions.setSelection(null); }
+      if (meta && e.key.toLowerCase() === "y") {
+        e.preventDefault();
+        actions.redo();
+      }
+      if (meta && e.key.toLowerCase() === "d") {
+        e.preventDefault();
+        actions.setSelection(null);
+      }
       if (e.key === "Escape") actions.setSelection(null);
-      if (e.key === "0" && meta) { e.preventDefault(); fitView(); }
+      if (e.key === "0" && meta) {
+        e.preventDefault();
+        fitView();
+      }
     };
-    const up = (e: KeyboardEvent) => { if (e.code === "Space") setSpaceDown(false); };
+    const up = (e: KeyboardEvent) => {
+      if (e.code === "Space") setSpaceDown(false);
+    };
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
     return () => {
@@ -156,9 +189,18 @@ export function EditorCanvas() {
   };
 
   const commitSelection = (newMask: HTMLCanvasElement | null) => {
-    if (!newMask) { if (tool.selectionMode === "replace") actions.setSelection(null); return; }
+    if (!newMask) {
+      if (tool.selectionMode === "replace") actions.setSelection(null);
+      return;
+    }
     if (tool.feather > 0) featherMask(newMask, tool.feather);
-    const combined = combineMasks(doc.selection?.mask, newMask, tool.selectionMode, doc.width, doc.height);
+    const combined = combineMasks(
+      doc.selection?.mask,
+      newMask,
+      tool.selectionMode,
+      doc.width,
+      doc.height,
+    );
     actions.setSelection(selectionFromMask(combined));
   };
 
@@ -187,7 +229,13 @@ export function EditorCanvas() {
     (e.target as Element).setPointerCapture(e.pointerId);
     if (spaceDown || e.button === 1) {
       setPanning(true);
-      interaction.current = { kind: "pan", startX: e.clientX, startY: e.clientY, tx: view.tx, ty: view.ty };
+      interaction.current = {
+        kind: "pan",
+        startX: e.clientX,
+        startY: e.clientY,
+        tx: view.tx,
+        ty: view.ty,
+      };
       return;
     }
     const p = toDocPos(e);
@@ -208,7 +256,10 @@ export function EditorCanvas() {
       setEditingTextId(layer.id);
       requestAnimationFrame(() => {
         const ta = textEditorRef.current;
-        if (ta) { ta.focus(); ta.select(); }
+        if (ta) {
+          ta.focus();
+          ta.select();
+        }
       });
       return;
     }
@@ -225,11 +276,13 @@ export function EditorCanvas() {
       if (!raster) return;
       const mask = maskFromWand(
         raster.canvas,
-        p.x, p.y,
+        p.x,
+        p.y,
         tool.tolerance,
         tool.wandContiguous,
         { x: raster.x, y: raster.y },
-        doc.width, doc.height,
+        doc.width,
+        doc.height,
       );
       commitSelection(mask);
       return;
@@ -242,12 +295,25 @@ export function EditorCanvas() {
       if (!raster) return;
       actions.beginStroke(raster.id);
       paintStamp(raster, p.x, p.y, tool.tool === "eraser", tool, doc.selection);
-      interaction.current = { kind: "paint", lastX: p.x, lastY: p.y, layerId: raster.id, erase: tool.tool === "eraser" };
+      interaction.current = {
+        kind: "paint",
+        lastX: p.x,
+        lastY: p.y,
+        layerId: raster.id,
+        erase: tool.tool === "eraser",
+      };
     } else if (tool.tool === "fill") {
       const raster = actions.activeRaster();
       if (!raster) return;
       actions.recordRaster("Fill", raster.id, () => {
-        floodFill(raster.canvas, Math.floor(p.x), Math.floor(p.y), tool.brushColor, doc.selection, tool.tolerance);
+        floodFill(
+          raster.canvas,
+          Math.floor(p.x),
+          Math.floor(p.y),
+          tool.brushColor,
+          doc.selection,
+          tool.tolerance,
+        );
       });
     } else if (tool.tool === "select-rect") {
       interaction.current = { kind: "select", startX: p.x, startY: p.y };
@@ -256,8 +322,10 @@ export function EditorCanvas() {
       interaction.current = {
         kind: "move",
         layerId: active.id,
-        startX: p.x, startY: p.y,
-        origX: active.x, origY: active.y,
+        startX: p.x,
+        startY: p.y,
+        origX: active.x,
+        origY: active.y,
       };
     } else if (tool.tool === "eyedropper") {
       const px = sampleColor(doc.layers, Math.floor(p.x), Math.floor(p.y), doc.width, doc.height);
@@ -269,7 +337,11 @@ export function EditorCanvas() {
     const it = interaction.current;
     if (!it) return;
     if (it.kind === "pan") {
-      setView((v) => ({ ...v, tx: it.tx + (e.clientX - it.startX), ty: it.ty + (e.clientY - it.startY) }));
+      setView((v) => ({
+        ...v,
+        tx: it.tx + (e.clientX - it.startX),
+        ty: it.ty + (e.clientY - it.startY),
+      }));
       return;
     }
     const p = toDocPos(e);
@@ -285,7 +357,8 @@ export function EditorCanvas() {
         const t = i / n;
         paintStamp(raster, it.lastX + dx * t, it.lastY + dy * t, it.erase, tool, doc.selection);
       }
-      it.lastX = p.x; it.lastY = p.y;
+      it.lastX = p.x;
+      it.lastY = p.y;
       actions.setTool({});
     } else if (it.kind === "select") {
       const x = Math.min(it.startX, p.x);
@@ -365,121 +438,168 @@ export function EditorCanvas() {
         }}
       >
         <div className="checker absolute inset-0" />
-        <canvas ref={displayRef} className="absolute inset-0" style={{ width: doc.width, height: doc.height }} />
-        <canvas ref={overlayRef} className="pointer-events-none absolute inset-0" style={{ width: doc.width, height: doc.height }} />
-        {editingTextId && (() => {
-          const layer = doc.layers.find((l) => l.id === editingTextId);
-          if (!layer || layer.type !== "text") return null;
-          const invZ = 1 / view.zoom;
-          return (
-            <>
-              {/* Floating formatting toolbar — counter-scaled so it stays a comfortable size */}
-              <div
-                onPointerDown={(e) => e.stopPropagation()}
-                onWheel={(e) => e.stopPropagation()}
-                style={{
-                  position: "absolute",
-                  left: layer.x,
-                  top: layer.y,
-                  transform: `translateY(calc(-100% - ${10 * invZ}px)) scale(${invZ})`,
-                  transformOrigin: "top left",
-                  zIndex: 10,
-                }}
-              >
-                <div className="flex items-center gap-1 rounded-md border border-border bg-popover/95 p-1 shadow-lg backdrop-blur">
-                  <select
-                    value={layer.fontFamily}
-                    onChange={(e) => actions.updateLayer(layer.id, { fontFamily: e.target.value })}
-                    className="h-7 max-w-[160px] rounded bg-input px-2 text-xs outline-none focus:ring-1 focus:ring-ring"
-                    style={{ fontFamily: layer.fontFamily }}
-                  >
-                    {FONTS.map((f) => (
-                      <option key={f.label} value={f.value} style={{ fontFamily: f.value }}>{f.label}</option>
-                    ))}
-                  </select>
-                  <input
-                    type="number"
-                    min={8}
-                    max={400}
-                    value={layer.fontSize}
-                    onChange={(e) => actions.updateLayer(layer.id, { fontSize: +e.target.value || 12 })}
-                    className="h-7 w-14 rounded bg-input px-1 text-xs outline-none focus:ring-1 focus:ring-ring"
-                  />
-                  <input
-                    type="color"
-                    value={layer.color}
-                    onChange={(e) => actions.updateLayer(layer.id, { color: e.target.value })}
-                    className="h-7 w-8 cursor-pointer rounded border border-border bg-transparent"
-                  />
-                  <button
-                    onClick={() => actions.updateLayer(layer.id, { bold: !layer.bold })}
-                    title="Bold"
-                    className={"flex h-7 w-7 items-center justify-center rounded border " + (layer.bold ? "border-primary bg-primary/15" : "border-border bg-secondary text-muted-foreground hover:text-foreground")}
-                  ><Bold className="h-3.5 w-3.5" /></button>
-                  <button
-                    onClick={() => actions.updateLayer(layer.id, { italic: !layer.italic })}
-                    title="Italic"
-                    className={"flex h-7 w-7 items-center justify-center rounded border " + (layer.italic ? "border-primary bg-primary/15" : "border-border bg-secondary text-muted-foreground hover:text-foreground")}
-                  ><Italic className="h-3.5 w-3.5" /></button>
-                  <button
-                    onClick={() => commitTextEdit()}
-                    title="Done (Esc)"
-                    className="flex h-7 items-center gap-1 rounded bg-primary px-2 text-xs text-primary-foreground hover:opacity-90"
-                  ><Check className="h-3.5 w-3.5" /> Done</button>
+        <canvas
+          ref={displayRef}
+          className="absolute inset-0"
+          style={{ width: doc.width, height: doc.height }}
+        />
+        <canvas
+          ref={overlayRef}
+          className="pointer-events-none absolute inset-0"
+          style={{ width: doc.width, height: doc.height }}
+        />
+        {editingTextId &&
+          (() => {
+            const layer = doc.layers.find((l) => l.id === editingTextId);
+            if (!layer || layer.type !== "text") return null;
+            const invZ = 1 / view.zoom;
+            return (
+              <>
+                {/* Floating formatting toolbar — counter-scaled so it stays a comfortable size */}
+                <div
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onWheel={(e) => e.stopPropagation()}
+                  style={{
+                    position: "absolute",
+                    left: layer.x,
+                    top: layer.y,
+                    transform: `translateY(calc(-100% - ${10 * invZ}px)) scale(${invZ})`,
+                    transformOrigin: "top left",
+                    zIndex: 10,
+                  }}
+                >
+                  <div className="flex items-center gap-1 rounded-md border border-border bg-popover/95 p-1 shadow-lg backdrop-blur">
+                    <select
+                      value={layer.fontFamily}
+                      onChange={(e) =>
+                        actions.updateLayer(layer.id, { fontFamily: e.target.value })
+                      }
+                      className="h-7 max-w-[160px] rounded bg-input px-2 text-xs outline-none focus:ring-1 focus:ring-ring"
+                      style={{ fontFamily: layer.fontFamily }}
+                    >
+                      {FONTS.map((f) => (
+                        <option key={f.label} value={f.value} style={{ fontFamily: f.value }}>
+                          {f.label}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="number"
+                      min={8}
+                      max={400}
+                      value={layer.fontSize}
+                      onChange={(e) =>
+                        actions.updateLayer(layer.id, { fontSize: +e.target.value || 12 })
+                      }
+                      className="h-7 w-14 rounded bg-input px-1 text-xs outline-none focus:ring-1 focus:ring-ring"
+                    />
+                    <input
+                      type="color"
+                      value={layer.color}
+                      onChange={(e) => actions.updateLayer(layer.id, { color: e.target.value })}
+                      className="h-7 w-8 cursor-pointer rounded border border-border bg-transparent"
+                    />
+                    <button
+                      onClick={() => actions.updateLayer(layer.id, { bold: !layer.bold })}
+                      title="Bold"
+                      className={
+                        "flex h-7 w-7 items-center justify-center rounded border " +
+                        (layer.bold
+                          ? "border-primary bg-primary/15"
+                          : "border-border bg-secondary text-muted-foreground hover:text-foreground")
+                      }
+                    >
+                      <Bold className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={() => actions.updateLayer(layer.id, { italic: !layer.italic })}
+                      title="Italic"
+                      className={
+                        "flex h-7 w-7 items-center justify-center rounded border " +
+                        (layer.italic
+                          ? "border-primary bg-primary/15"
+                          : "border-border bg-secondary text-muted-foreground hover:text-foreground")
+                      }
+                    >
+                      <Italic className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={() => commitTextEdit()}
+                      title="Done (Esc)"
+                      className="flex h-7 items-center gap-1 rounded bg-primary px-2 text-xs text-primary-foreground hover:opacity-90"
+                    >
+                      <Check className="h-3.5 w-3.5" /> Done
+                    </button>
+                  </div>
                 </div>
-              </div>
-              <textarea
-                ref={textEditorRef}
-                value={layer.text}
-                autoFocus
-                spellCheck={false}
-                placeholder="Type your text…"
-                onChange={(e) => actions.updateLayer(layer.id, { text: e.target.value })}
-                onPointerDown={(e) => e.stopPropagation()}
-                onWheel={(e) => e.stopPropagation()}
-                onKeyDown={(e) => {
-                  e.stopPropagation();
-                  if (e.key === "Escape") commitTextEdit();
-                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) commitTextEdit();
-                }}
-                style={{
-                  position: "absolute",
-                  left: layer.x,
-                  top: layer.y,
-                  minWidth: Math.max(120, layer.fontSize * 4),
-                  minHeight: layer.fontSize * 1.4,
-                  padding: `${layer.fontSize * 0.1}px ${layer.fontSize * 0.2}px`,
-                  margin: 0,
-                  background: "transparent",
-                  color: layer.color,
-                  font: `${layer.italic ? "italic " : ""}${layer.bold ? "700 " : "400 "}${layer.fontSize}px ${layer.fontFamily}`,
-                  lineHeight: 1.2,
-                  border: "none",
-                  outline: `${Math.max(1, 2 / view.zoom)}px dashed oklch(0.72 0.18 250)`,
-                  outlineOffset: `${4 / view.zoom}px`,
-                  borderRadius: `${4 / view.zoom}px`,
-                  boxShadow: `0 0 ${24 / view.zoom}px oklch(0.72 0.18 250 / 0.35)`,
-                  resize: "none",
-                  overflow: "hidden",
-                  whiteSpace: "pre",
-                  caretColor: "oklch(0.72 0.18 250)",
-                }}
-              />
-            </>
-          );
-        })()}
+                <textarea
+                  ref={textEditorRef}
+                  value={layer.text}
+                  autoFocus
+                  spellCheck={false}
+                  placeholder="Type your text…"
+                  onChange={(e) => actions.updateLayer(layer.id, { text: e.target.value })}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onWheel={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => {
+                    e.stopPropagation();
+                    if (e.key === "Escape") commitTextEdit();
+                    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) commitTextEdit();
+                  }}
+                  style={{
+                    position: "absolute",
+                    left: layer.x,
+                    top: layer.y,
+                    minWidth: Math.max(120, layer.fontSize * 4),
+                    minHeight: layer.fontSize * 1.4,
+                    padding: `${layer.fontSize * 0.1}px ${layer.fontSize * 0.2}px`,
+                    margin: 0,
+                    background: "transparent",
+                    color: layer.color,
+                    font: `${layer.italic ? "italic " : ""}${layer.bold ? "700 " : "400 "}${layer.fontSize}px ${layer.fontFamily}`,
+                    lineHeight: 1.2,
+                    border: "none",
+                    outline: `${Math.max(1, 2 / view.zoom)}px dashed oklch(0.72 0.18 250)`,
+                    outlineOffset: `${4 / view.zoom}px`,
+                    borderRadius: `${4 / view.zoom}px`,
+                    boxShadow: `0 0 ${24 / view.zoom}px oklch(0.72 0.18 250 / 0.35)`,
+                    resize: "none",
+                    overflow: "hidden",
+                    whiteSpace: "pre",
+                    caretColor: "oklch(0.72 0.18 250)",
+                  }}
+                />
+              </>
+            );
+          })()}
       </div>
-
 
       {/* HUD */}
       <div className="pointer-events-none absolute bottom-3 left-3 rounded-md bg-black/50 px-2 py-1 text-xs text-white/80 backdrop-blur">
         {Math.round(view.zoom * 100)}% · {doc.width}×{doc.height}px
       </div>
       <div className="absolute bottom-3 right-3 flex gap-1 text-xs">
-        <button onClick={() => setView((v) => ({ ...v, zoom: clamp(v.zoom / 1.25, MIN_ZOOM, MAX_ZOOM) }))} className="rounded bg-secondary px-2 py-1">−</button>
-        <button onClick={fitView} className="rounded bg-secondary px-2 py-1">Fit</button>
-        <button onClick={() => setView({ zoom: 1, tx: 32, ty: 32 })} className="rounded bg-secondary px-2 py-1">100%</button>
-        <button onClick={() => setView((v) => ({ ...v, zoom: clamp(v.zoom * 1.25, MIN_ZOOM, MAX_ZOOM) }))} className="rounded bg-secondary px-2 py-1">+</button>
+        <button
+          onClick={() => setView((v) => ({ ...v, zoom: clamp(v.zoom / 1.25, MIN_ZOOM, MAX_ZOOM) }))}
+          className="rounded bg-secondary px-2 py-1"
+        >
+          −
+        </button>
+        <button onClick={fitView} className="rounded bg-secondary px-2 py-1">
+          Fit
+        </button>
+        <button
+          onClick={() => setView({ zoom: 1, tx: 32, ty: 32 })}
+          className="rounded bg-secondary px-2 py-1"
+        >
+          100%
+        </button>
+        <button
+          onClick={() => setView((v) => ({ ...v, zoom: clamp(v.zoom * 1.25, MIN_ZOOM, MAX_ZOOM) }))}
+          className="rounded bg-secondary px-2 py-1"
+        >
+          +
+        </button>
       </div>
     </div>
   );
@@ -529,7 +649,8 @@ function drawLayer(ctx: CanvasRenderingContext2D, layer: Layer) {
  */
 function paintStamp(
   layer: RasterLayer,
-  x: number, y: number,
+  x: number,
+  y: number,
   erase: boolean,
   tool: { brushSize: number; brushHardness: number; brushColor: string },
   selection: Selection | null,
@@ -586,7 +707,8 @@ function hexWithAlpha(hex: string, alpha: number): string {
 
 function floodFill(
   canvas: HTMLCanvasElement,
-  x: number, y: number,
+  x: number,
+  y: number,
   hex: string,
   selection: Selection | null,
   tolerance: number,
@@ -613,7 +735,12 @@ function floodFill(
   const inSel = (px: number, py: number) => {
     if (!selection) return true;
     if (maskData) return maskData[(py * w + px) * 4 + 3] > 0;
-    return px >= selection.x && py >= selection.y && px < selection.x + selection.w && py < selection.y + selection.h;
+    return (
+      px >= selection.x &&
+      py >= selection.y &&
+      px < selection.x + selection.w &&
+      py < selection.y + selection.h
+    );
   };
 
   const stack: number[] = [x, y];
@@ -628,8 +755,12 @@ function floodFill(
       Math.abs(data[idx + 1] - target[1]) > tol ||
       Math.abs(data[idx + 2] - target[2]) > tol ||
       Math.abs(data[idx + 3] - target[3]) > tol
-    ) continue;
-    data[idx] = fill[0]; data[idx + 1] = fill[1]; data[idx + 2] = fill[2]; data[idx + 3] = fill[3];
+    )
+      continue;
+    data[idx] = fill[0];
+    data[idx + 1] = fill[1];
+    data[idx + 2] = fill[2];
+    data[idx + 3] = fill[3];
     stack.push(px + 1, py, px - 1, py, px, py + 1, px, py - 1);
   }
   ctx.putImageData(img, 0, 0);
@@ -637,7 +768,8 @@ function floodFill(
 
 function sampleColor(layers: Layer[], x: number, y: number, w: number, h: number): string | null {
   const tmp = document.createElement("canvas");
-  tmp.width = w; tmp.height = h;
+  tmp.width = w;
+  tmp.height = h;
   const ctx = tmp.getContext("2d")!;
   for (const l of layers) {
     if (!l.visible) continue;

@@ -32,7 +32,10 @@ export function selectionFromMask(mask: HTMLCanvasElement): Selection | null {
   const h = mask.height;
   const ctx = mask.getContext("2d")!;
   const data = ctx.getImageData(0, 0, w, h).data;
-  let minX = w, minY = h, maxX = -1, maxY = -1;
+  let minX = w,
+    minY = h,
+    maxX = -1,
+    maxY = -1;
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       if (data[(y * w + x) * 4 + 3] > 0) {
@@ -49,7 +52,9 @@ export function selectionFromMask(mask: HTMLCanvasElement): Selection | null {
 
 /** Rasterise a polygon (in doc coords) into an alpha mask canvas. */
 export function maskFromPolygon(
-  docW: number, docH: number, points: { x: number; y: number }[],
+  docW: number,
+  docH: number,
+  points: { x: number; y: number }[],
 ): HTMLCanvasElement {
   const c = makeMask(docW, docH);
   if (points.length < 3) return c;
@@ -70,11 +75,13 @@ export function maskFromPolygon(
  */
 export function maskFromWand(
   source: HTMLCanvasElement,
-  x: number, y: number,
+  x: number,
+  y: number,
   tolerance: number,
   contiguous: boolean,
   layerOffset: { x: number; y: number },
-  docW: number, docH: number,
+  docW: number,
+  docH: number,
 ): HTMLCanvasElement | null {
   const sx = Math.floor(x - layerOffset.x);
   const sy = Math.floor(y - layerOffset.y);
@@ -84,7 +91,10 @@ export function maskFromWand(
   const sw = source.width;
   const sh = source.height;
   const i0 = (sy * sw + sx) * 4;
-  const tr = sd[i0], tg = sd[i0 + 1], tb = sd[i0 + 2], ta = sd[i0 + 3];
+  const tr = sd[i0],
+    tg = sd[i0 + 1],
+    tb = sd[i0 + 2],
+    ta = sd[i0 + 3];
   const tol = tolerance;
 
   const out = makeMask(docW, docH);
@@ -138,7 +148,8 @@ export function combineMasks(
   base: HTMLCanvasElement | undefined,
   add: HTMLCanvasElement,
   mode: "replace" | "add" | "subtract",
-  docW: number, docH: number,
+  docW: number,
+  docH: number,
 ): HTMLCanvasElement {
   if (mode === "replace" || !base) return add;
   const out = makeMask(docW, docH);
@@ -158,7 +169,8 @@ export function combineMasks(
 export function selectionContains(
   sel: Selection | null,
   data: Uint8ClampedArray | null,
-  x: number, y: number,
+  x: number,
+  y: number,
   docW: number,
 ): boolean {
   if (!sel) return true;

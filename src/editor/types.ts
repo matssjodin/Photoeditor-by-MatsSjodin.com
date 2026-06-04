@@ -27,15 +27,15 @@ export type BlendMode =
   | "exclusion";
 
 export interface Adjustments {
-  brightness: number;   // -100..100
-  contrast: number;     // -100..100
-  saturation: number;   // -100..100
-  exposure: number;     // -100..100
-  hue: number;          // -180..180
-  blur: number;         // 0..20
-  grayscale: number;    // 0..100
-  sepia: number;        // 0..100
-  invert: number;       // 0..100
+  brightness: number; // -100..100
+  contrast: number; // -100..100
+  saturation: number; // -100..100
+  exposure: number; // -100..100
+  hue: number; // -180..180
+  blur: number; // 0..20
+  grayscale: number; // 0..100
+  sepia: number; // 0..100
+  invert: number; // 0..100
 }
 
 export const DEFAULT_ADJUSTMENTS: Adjustments = {

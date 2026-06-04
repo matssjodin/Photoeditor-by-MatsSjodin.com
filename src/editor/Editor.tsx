@@ -21,7 +21,9 @@ export function Editor() {
   }, []);
 
   useEffect(() => {
-    const prevent = (e: DragEvent) => { e.preventDefault(); };
+    const prevent = (e: DragEvent) => {
+      e.preventDefault();
+    };
     window.addEventListener("dragover", prevent);
     window.addEventListener("drop", prevent);
     return () => {
@@ -33,8 +35,13 @@ export function Editor() {
   return (
     <div
       className="grid h-screen w-screen grid-rows-[auto_1fr] bg-background text-foreground"
-      onDragEnter={(e) => { e.preventDefault(); setDragOver(true); }}
-      onDragLeave={(e) => { if (e.currentTarget === e.target) setDragOver(false); }}
+      onDragEnter={(e) => {
+        e.preventDefault();
+        setDragOver(true);
+      }}
+      onDragLeave={(e) => {
+        if (e.currentTarget === e.target) setDragOver(false);
+      }}
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => {
         e.preventDefault();
@@ -43,7 +50,10 @@ export function Editor() {
         if (!file) return;
         const url = URL.createObjectURL(file);
         const img = new Image();
-        img.onload = () => { actions.loadImage(img); URL.revokeObjectURL(url); };
+        img.onload = () => {
+          actions.loadImage(img);
+          URL.revokeObjectURL(url);
+        };
         img.src = url;
       }}
     >
@@ -73,7 +83,9 @@ function Welcome() {
       <div className="pointer-events-auto flex flex-col items-center gap-2 rounded-xl border border-border bg-card/80 px-6 py-5 text-center backdrop-blur">
         <FilePlus2 className="h-8 w-8 text-primary" />
         <p className="text-sm font-medium">Drop an image here, or use Open in the top bar</p>
-        <p className="text-xs text-muted-foreground">Everything is processed locally in your browser.</p>
+        <p className="text-xs text-muted-foreground">
+          Everything is processed locally in your browser.
+        </p>
       </div>
     </div>
   );

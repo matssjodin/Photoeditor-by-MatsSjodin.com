@@ -1,6 +1,14 @@
 // Top menu bar: new doc, open, export, history info.
 
-import { Download, FilePlus2, FolderOpen, Image as ImageIcon, Undo2, Redo2, Layers as LayersIcon } from "lucide-react";
+import {
+  Download,
+  FilePlus2,
+  FolderOpen,
+  Image as ImageIcon,
+  Undo2,
+  Redo2,
+  Layers as LayersIcon,
+} from "lucide-react";
 import { actions, useEditor } from "./store";
 import { buildFilterString } from "./types";
 import { useRef } from "react";
@@ -12,7 +20,10 @@ export function TopBar() {
   const onOpenFile = async (file: File) => {
     const url = URL.createObjectURL(file);
     const img = new Image();
-    img.onload = () => { actions.loadImage(img); URL.revokeObjectURL(url); };
+    img.onload = () => {
+      actions.loadImage(img);
+      URL.revokeObjectURL(url);
+    };
     img.src = url;
   };
 
@@ -21,7 +32,10 @@ export function TopBar() {
     out.width = s.doc.width;
     out.height = s.doc.height;
     const ctx = out.getContext("2d")!;
-    if (type !== "png") { ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, out.width, out.height); }
+    if (type !== "png") {
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, out.width, out.height);
+    }
     for (const l of s.doc.layers) {
       if (!l.visible) continue;
       ctx.save();
@@ -44,14 +58,18 @@ export function TopBar() {
       ctx.restore();
     }
     const mime = `image/${type}`;
-    out.toBlob((blob) => {
-      if (!blob) return;
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = `untitled.${type === "jpeg" ? "jpg" : type}`;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-    }, mime, 0.92);
+    out.toBlob(
+      (blob) => {
+        if (!blob) return;
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `untitled.${type === "jpeg" ? "jpg" : type}`;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      },
+      mime,
+      0.92,
+    );
   };
 
   return (
@@ -66,11 +84,13 @@ export function TopBar() {
 
       <div className="mx-2 h-6 w-px bg-border" />
 
-      <MenuButton onClick={() => {
-        const w = +(prompt("Width", "1200") || 0);
-        const h = +(prompt("Height", "800") || 0);
-        if (w > 0 && h > 0) actions.newDocument(w, h);
-      }}>
+      <MenuButton
+        onClick={() => {
+          const w = +(prompt("Width", "1200") || 0);
+          const h = +(prompt("Height", "800") || 0);
+          if (w > 0 && h > 0) actions.newDocument(w, h);
+        }}
+      >
         <FilePlus2 className="h-4 w-4" /> New
       </MenuButton>
       <MenuButton onClick={() => fileInput.current?.click()}>
@@ -81,7 +101,11 @@ export function TopBar() {
         type="file"
         accept="image/*"
         className="hidden"
-        onChange={(e) => { const f = e.target.files?.[0]; if (f) onOpenFile(f); e.currentTarget.value = ""; }}
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) onOpenFile(f);
+          e.currentTarget.value = "";
+        }}
       />
 
       <div className="mx-2 h-6 w-px bg-border" />
@@ -94,16 +118,28 @@ export function TopBar() {
       </MenuButton>
 
       <div className="ml-auto flex items-center gap-1">
-        <MenuButton onClick={() => exportImage("png")}><Download className="h-4 w-4" /> PNG</MenuButton>
-        <MenuButton onClick={() => exportImage("jpeg")}><ImageIcon className="h-4 w-4" /> JPEG</MenuButton>
-        <MenuButton onClick={() => exportImage("webp")}><ImageIcon className="h-4 w-4" /> WebP</MenuButton>
+        <MenuButton onClick={() => exportImage("png")}>
+          <Download className="h-4 w-4" /> PNG
+        </MenuButton>
+        <MenuButton onClick={() => exportImage("jpeg")}>
+          <ImageIcon className="h-4 w-4" /> JPEG
+        </MenuButton>
+        <MenuButton onClick={() => exportImage("webp")}>
+          <ImageIcon className="h-4 w-4" /> WebP
+        </MenuButton>
       </div>
     </header>
   );
 }
 
-function MenuButton({ children, onClick, disabled }: {
-  children: React.ReactNode; onClick?: () => void; disabled?: boolean;
+function MenuButton({
+  children,
+  onClick,
+  disabled,
+}: {
+  children: React.ReactNode;
+  onClick?: () => void;
+  disabled?: boolean;
 }) {
   return (
     <button

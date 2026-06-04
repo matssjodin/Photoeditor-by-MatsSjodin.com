@@ -9,6 +9,7 @@ import {
   type RasterLayer,
   type Selection,
   type TextLayer,
+  type ToolId,
 } from "./types";
 import {
   combineMasks,
@@ -28,6 +29,20 @@ interface ViewState {
 
 const MIN_ZOOM = 0.05;
 const MAX_ZOOM = 16;
+
+// Single-key tool shortcuts, matching the (X) hints in the toolbar tooltips.
+const TOOL_KEYS: Record<string, ToolId> = {
+  v: "move",
+  m: "select-rect",
+  l: "lasso",
+  w: "wand",
+  b: "brush",
+  e: "eraser",
+  g: "fill",
+  i: "eyedropper",
+  t: "text",
+  c: "crop",
+};
 
 export function EditorCanvas() {
   const s = useEditor();
@@ -127,10 +142,20 @@ export function EditorCanvas() {
     }
   }, [doc.selection, doc.width, doc.height, view.zoom, s.version, lassoPreview]);
 
-  // Keyboard: space-to-pan, undo/redo, delete selection
+  // Keyboard: space-to-pan, undo/redo, delete selection, single-key tool switching
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
-      if (e.code === "Space") {
+      // Never hijack keys while typing in a field or editing canvas text.
+      const target = e.target as HTMLElement | null;
+      const typing =
+        !!editingTextId ||
+        (target &&
+          (target.tagName === "INPUT" ||
+            target.tagName === "TEXTAREA" ||
+            target.tagName === "SELECT" ||
+            target.isContentEditable));
+
+      if (e.code === "Space" && !typing) {
         setSpaceDown(true);
         e.preventDefault();
       }
@@ -153,6 +178,16 @@ export function EditorCanvas() {
         e.preventDefault();
         fitView();
       }
+
+      // Single-key tool shortcuts (no modifier, not while typing). These match
+      // the hints shown in the toolbar tooltips.
+      if (!meta && !e.altKey && !typing) {
+        const tool = TOOL_KEYS[e.key.toLowerCase()];
+        if (tool) {
+          e.preventDefault();
+          actions.setTool({ tool });
+        }
+      }
     };
     const up = (e: KeyboardEvent) => {
       if (e.code === "Space") setSpaceDown(false);
@@ -163,7 +198,7 @@ export function EditorCanvas() {
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
     };
-  }, [fitView]);
+  }, [fitView, editingTextId]);
 
   // Wheel zoom
   const onWheel = (e: React.WheelEvent) => {

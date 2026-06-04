@@ -91,6 +91,10 @@ export function EditorCanvas() {
     ctx.clearRect(0, 0, doc.width, doc.height);
     for (const layer of doc.layers) {
       if (!layer.visible) continue;
+      // While a text layer is being edited, the live <textarea> overlay shows
+      // its text; skip compositing it here so the two don't render on top of
+      // each other (the "double text" ghost).
+      if (layer.id === editingTextId) continue;
       ctx.save();
       ctx.globalAlpha = layer.opacity;
       ctx.globalCompositeOperation = layer.blendMode;
@@ -98,7 +102,7 @@ export function EditorCanvas() {
       drawLayer(ctx, layer);
       ctx.restore();
     }
-  }, [s.version, doc]);
+  }, [s.version, doc, editingTextId]);
 
   // Draw selection overlay (marching-ants for rect, contour tint for mask,
   // and a live preview while drawing a lasso).
@@ -177,6 +181,15 @@ export function EditorCanvas() {
       if (e.key === "0" && meta) {
         e.preventDefault();
         fitView();
+      }
+      // Delete the active layer (Photoshop-style), unless typing/editing text.
+      // Read live state so the handler never holds a stale active layer.
+      if ((e.key === "Delete" || e.key === "Backspace") && !meta && !typing) {
+        const active = actions.activeLayer();
+        if (active) {
+          e.preventDefault();
+          actions.deleteLayer(active.id);
+        }
       }
 
       // Single-key tool shortcuts (no modifier, not while typing). These match

@@ -329,6 +329,18 @@ function LayerRow({ layer, active }: { layer: Layer; active: boolean }) {
       >
         {layer.locked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
       </button>
+      <button
+        type="button"
+        aria-label="Delete layer"
+        title="Delete layer (Del)"
+        onClick={(e) => {
+          e.stopPropagation();
+          actions.deleteLayer(layer.id);
+        }}
+        className="text-muted-foreground hover:text-destructive"
+      >
+        <Trash2 className="h-4 w-4" />
+      </button>
     </div>
   );
 }

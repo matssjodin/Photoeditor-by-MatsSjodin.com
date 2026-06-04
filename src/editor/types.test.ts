@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import { buildFilterString, DEFAULT_ADJUSTMENTS, uid, type Adjustments } from "./types";
 
 const adj = (over: Partial<Adjustments> = {}): Adjustments => ({

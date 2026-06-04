@@ -79,7 +79,14 @@ export function TopBar() {
           <LayersIcon className="h-4 w-4" />
         </div>
         <span className="text-sm font-semibold tracking-tight">Photo Editor</span>
-        <span className="hidden text-xs text-muted-foreground sm:inline">by MatsSjodin.com</span>
+        <a
+          href="https://matssjodin.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hidden text-xs text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline sm:inline"
+        >
+          by MatsSjodin.com
+        </a>
       </div>
 
       <div className="mx-2 h-6 w-px bg-border" />

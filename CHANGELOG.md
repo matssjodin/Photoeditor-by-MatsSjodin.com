@@ -7,6 +7,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Dismissible site notice banner: discloses that editing is local (nothing uploaded),
+  that only browser-local preferences are stored, and that cookieless analytics + error
+  reporting may run; states the software is provided free, "as is", without warranties.
+  Acknowledgement persists in `localStorage`.
+- Linked the in-app "by MatsSjodin.com" wordmark to https://matssjodin.com.
 - Social share image (`public/og-image.png`, 1200×630) wired into Open Graph and
   Twitter `summary_large_image` meta; regenerate with `bun run og`.
 - Optional cookieless analytics (Plausible), off by default, enabled via

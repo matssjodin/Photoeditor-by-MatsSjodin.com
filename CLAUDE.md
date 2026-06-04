@@ -20,11 +20,13 @@ bun run dev            # vite dev server
 bun run build          # production build (vite + nitro)
 bun run build:dev      # build in development mode
 bun run preview        # preview production build
+bun run typecheck      # tsc --noEmit
 bun run lint           # eslint .
 bun run format         # prettier --write .
+bun test               # Bun test runner (*.test.ts)
 ```
 
-There is **no test setup** in this repo. Verification is `bun run lint` + `bun run build`.
+Full green-bar check before committing: `bun run typecheck && bun run lint && bun test && bun run build`. Tests run under Bun's runtime (no DOM/canvas), so they cover pure logic only — see `src/editor/types.test.ts`. Canvas-dependent code (`selection.ts`, store history) is not unit-tested for lack of a 2D context in the test runtime.
 
 `bunfig.toml` enforces a 24h supply-chain guard (`minimumReleaseAge`) — newly published package versions are skipped. Adding a package to `minimumReleaseAgeExcludes` bypasses it; confirm with the user before doing so.
 
@@ -56,7 +58,7 @@ When adding a feature: a new **tool** = add to `ToolId` in `types.ts`, a button 
 
 - **Server logic** (if ever needed) uses `createServerFn` (see `src/lib/api/example.functions.ts`), not Supabase Edge Functions. Server-only code goes in `*.server.ts` files (the `server-only` npm package is blocked by ESLint). On the Cloudflare target, env binds per-request — read `process.env` **inside** handlers, never at module scope. `VITE_`-prefixed vars are public and reach the client; never put secrets there.
 
-- `src/server.ts` and `src/start.ts` are custom SSR error wrappers (catch h3-swallowed 500s, render `error-page.ts`). `src/lib/lovable-error-reporting.ts` / `error-capture.ts` are Lovable's error telemetry — leave them in place.
+- `src/server.ts` and `src/start.ts` are custom SSR error wrappers (catch h3-swallowed 500s, render `error-page.ts`). `start.ts` also adds the **security-headers request middleware** (CSP, HSTS, X-Frame-Options, etc.) — the CSP there must be updated if you add new external origins (e.g. analytics, a new font/CDN host) or it will silently block them. `src/lib/lovable-error-reporting.ts` / `error-capture.ts` are Lovable's error telemetry — leave them in place.
 
 ## Styling
 

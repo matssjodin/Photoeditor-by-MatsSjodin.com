@@ -59,13 +59,19 @@ bun run dev        # start the dev server (http://localhost:3000)
 | `bun run lint`      | ESLint (Prettier-integrated)              |
 | `bun run format`    | Prettier write                            |
 | `bun test`          | Unit tests (Bun test runner)              |
+| `bun run og`        | Regenerate the social share image         |
 
 ## Environment variables
 
-**None are required.** The app has no backend, secrets, or external services beyond the
-Google Fonts CDN. See [`.env.example`](./.env.example). If you add server logic later,
-follow the patterns in `src/lib/config.server.ts` (server-only `*.server.ts` modules) and
-expose only `VITE_`-prefixed values to the client.
+**None are required.** The app has no backend or secrets. One optional variable enables
+privacy-friendly analytics; see [`.env.example`](./.env.example):
+
+| Variable                | Effect                                                                                                                                                  |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `VITE_PLAUSIBLE_DOMAIN` | When set, injects the cookieless [Plausible](https://plausible.io) script for page-view analytics. Unset = no analytics, no third-party call (default). |
+
+If you add server logic later, follow the patterns in `src/lib/config.server.ts`
+(server-only `*.server.ts` modules) and expose only `VITE_`-prefixed values to the client.
 
 ## Deployment
 
@@ -82,8 +88,8 @@ bunx wrangler deploy           # deploy (needs a Cloudflare account_id + auth)
 **Automated deploys** run via `.github/workflows/deploy.yml` on a manual trigger or a
 version tag (`git tag v1.0.0 && git push --tags`). Add these repository secrets first:
 
-| Secret | Purpose |
-| ------ | ------- |
+| Secret                  | Purpose                                             |
+| ----------------------- | --------------------------------------------------- |
 | `CLOUDFLARE_API_TOKEN`  | Token with the "Edit Cloudflare Workers" permission |
 | `CLOUDFLARE_ACCOUNT_ID` | Your Cloudflare account id                          |
 
@@ -107,7 +113,9 @@ src/
   routes/          # TanStack file-based routes (`/` renders the editor)
   components/ui/   # shadcn/ui primitives
   lib/             # SSR error wrappers, server config stubs
-public/            # robots.txt, sitemap.xml
+public/            # robots.txt, sitemap.xml, og-image.png
+scripts/           # build-time tooling (OG image generation)
+test/              # test setup (canvas polyfill)
 ```
 
 See [`CLAUDE.md`](./CLAUDE.md) for a deeper architecture tour.

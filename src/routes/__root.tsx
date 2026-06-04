@@ -14,9 +14,14 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 
 const SITE_NAME = "Photo Editor by MatsSjodin.com";
 const SITE_URL = "https://photoeditor.matssjodin.com/";
+const SITE_OG_IMAGE = "https://photoeditor.matssjodin.com/og-image.png";
 const SITE_DESCRIPTION =
   "A fast, private image editor that runs entirely in your browser — layers, " +
   "selections, adjustments, brushes, and text. Your images never leave your device.";
+
+// Opt-in, cookieless analytics. Off unless VITE_PLAUSIBLE_DOMAIN is set at build
+// time, preserving the privacy-by-default posture. See .env.example.
+const PLAUSIBLE_DOMAIN = import.meta.env.VITE_PLAUSIBLE_DOMAIN as string | undefined;
 
 function NotFoundComponent() {
   return (
@@ -92,10 +97,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:description", content: SITE_DESCRIPTION },
       { property: "og:type", content: "website" },
       { property: "og:url", content: SITE_URL },
-      { name: "twitter:card", content: "summary" },
+      { property: "og:image", content: SITE_OG_IMAGE },
+      { property: "og:image:width", content: "1200" },
+      { property: "og:image:height", content: "630" },
+      { property: "og:image:alt", content: SITE_NAME },
+      { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: SITE_NAME },
       { name: "twitter:description", content: SITE_DESCRIPTION },
+      { name: "twitter:image", content: SITE_OG_IMAGE },
     ],
+    scripts: PLAUSIBLE_DOMAIN
+      ? [{ src: "https://plausible.io/js/script.js", defer: true, "data-domain": PLAUSIBLE_DOMAIN }]
+      : [],
     links: [
       {
         rel: "stylesheet",

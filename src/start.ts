@@ -9,6 +9,9 @@ import { renderErrorPage } from "./lib/error-page";
  *  - Images come from the user's own files as blob:/data: URLs (drag-drop / open)
  *    and canvas exports; layer thumbnails use data: URLs.
  *  - Fonts are served from Google Fonts (fonts.googleapis.com / fonts.gstatic.com).
+ *  - Plausible (https://plausible.io) is allowed for the optional, cookieless
+ *    analytics script — the script only loads when VITE_PLAUSIBLE_DOMAIN is set,
+ *    but allowing the origin here keeps that purely an env toggle.
  *  - frame-ancestors 'none' blocks clickjacking (also covered by X-Frame-Options).
  */
 const CSP = [
@@ -18,10 +21,10 @@ const CSP = [
   "frame-ancestors 'none'",
   "form-action 'self'",
   "img-src 'self' data: blob:",
-  "script-src 'self' 'unsafe-inline'",
+  "script-src 'self' 'unsafe-inline' https://plausible.io",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com data:",
-  "connect-src 'self'",
+  "connect-src 'self' https://plausible.io",
   "worker-src 'self' blob:",
 ].join("; ");
 

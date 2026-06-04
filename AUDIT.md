@@ -205,10 +205,25 @@ Build output: client `index` 350 KB (111 KB gz) + 139 KB chunk (46 KB gz), CSS 7
 runtime ✅ (SSR renders 200 with correct head + security headers; checked on the app's real
 dev port 8080 — an unrelated Next.js app on :3000 initially produced misleading output).
 
-### Deferred / not done (need decision or larger effort) — see Remaining in delivery report
+### Deferred at end of Batch B (later picked up — see Recommendations follow-up)
 
-- PERF-2/CQ-3 (remove unused `recharts`/`chart.tsx`/shadcn primitives) — not done; low risk
-  but a cleanup judgment call, left for confirmation.
 - ARCH-2 (`config.server.ts`/`example.functions.ts` stubs) — kept as documented examples.
 - SEC-3 (font privacy) — stakeholder chose to keep Google CDN.
 - PERF-4 (dirty-layer compositing) — backlog; only matters at large doc/layer counts.
+
+### Recommendations follow-up — done
+
+- **R1 (deploy + CI) ✅** CI confirmed green on GitHub (gh run: success). Added
+  `wrangler.toml` (Workers Assets + SSR worker) and `deploy.yml` (manual/tag, secret-gated);
+  validated with `wrangler deploy --dry-run` (worker bundles, 6 assets read).
+- **R2 (dead-code trim) ✅** Removed `recharts` + `chart.tsx` + `sidebar.tsx` +
+  `use-mobile.tsx` (PERF-2/CQ-3). Build/lint/typecheck still green.
+- **R3 (canvas test coverage) ✅** Added a `@napi-rs/canvas` test polyfill and real tests
+  for `selection.ts` + store history. **34 tests total** (was 8).
+- **R4 (OG image + analytics) ✅** Branded `og-image.png` (generator script) wired into
+  OG/Twitter meta; opt-in cookieless Plausible analytics (off by default, CSP-allowed).
+  Both verified live in the rendered head.
+
+**Follow-up verification:** typecheck ✅ · lint ✅ 0 errors · test ✅ 34/34 · build ✅ clean ·
+`wrangler --dry-run` ✅ · runtime ✅ (og:image present, analytics off by default / injects when
+configured).

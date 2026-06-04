@@ -176,7 +176,8 @@ Build output: client `index` 350 KB (111 KB gz) + 139 KB chunk (46 KB gz), CSS 7
 - **Mobile:** desktop-only + a notice on small screens (not full responsive).
 - **Name:** "Photo Editor by MatsSjodin.com".
 - **Fonts:** keep the Google Fonts CDN (privacy tradeoff accepted; CSP allows it).
-- **License:** all rights reserved (proprietary — no OSS license).
+- **License:** initially all-rights-reserved; **later changed to Apache-2.0** (free use +
+  redistribution) with a `NOTICE` file requiring attribution + a link to matssjodin.com.
 
 ### Batch B — done
 

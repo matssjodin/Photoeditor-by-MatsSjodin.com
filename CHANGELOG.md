@@ -51,6 +51,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **License: all-rights-reserved → Apache-2.0.** The project is now free to use, modify,
+  and redistribute. Added a `NOTICE` file requiring redistributions to keep attribution to
+  "Photo Editor by MatsSjodin.com" and a link to https://matssjodin.com (Apache-2.0 §4(d)),
+  and set `"license": "Apache-2.0"` in `package.json`.
 - **Clarified the Crop tool.** Selecting Crop no longer silently swaps to the rectangle
   tool. You now drag directly to mark the area to keep; the panel shows numbered steps and
   the live selection size, and a "Crop to selection" button (disabled until you mark an

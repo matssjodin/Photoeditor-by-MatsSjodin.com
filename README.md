@@ -133,6 +133,10 @@ support. Not supported on legacy browsers or small mobile screens.
 
 ## License
 
-© MatsSjodin.com. **All rights reserved.** This source is published for reference only;
-see [`LICENSE`](./LICENSE). No permission is granted to copy, modify, redistribute, or use
-it without prior written consent.
+Licensed under the **[Apache License 2.0](./LICENSE)** © 2026 Mats Sjödin. You're free to
+use, modify, and redistribute it, including commercially.
+
+If you redistribute this project or a derivative, please keep the attribution from the
+[`NOTICE`](./NOTICE) file — namely a credit to **Photo Editor by MatsSjodin.com** and a link
+back to **https://matssjodin.com** (Apache-2.0 §4(d)). The app already shows this link in its
+top bar; keeping it there is the easiest way to comply. Thanks for the credit! 🙏

@@ -24,10 +24,10 @@ interface ToolState {
   fontSize: number;
   fontFamily: string;
   // Selection options
-  tolerance: number;       // 0..255 — magic wand / fill colour tolerance
+  tolerance: number; // 0..255 — magic wand / fill colour tolerance
   wandContiguous: boolean; // limit wand to contiguous pixels
   selectionMode: "replace" | "add" | "subtract";
-  feather: number;         // px — gaussian feather applied to new selections
+  feather: number; // px — gaussian feather applied to new selections
 }
 
 interface HistoryEntry {
@@ -42,6 +42,9 @@ interface HistoryEntry {
   layersAfter?: Layer[];
   selectionBefore?: Selection | null;
   selectionAfter?: Selection | null;
+  // Document dimensions before/after structural ops (resize, crop).
+  sizeBefore?: { w: number; h: number };
+  sizeAfter?: { w: number; h: number };
 }
 
 interface State {
@@ -202,7 +205,10 @@ export const actions = {
 
   // ---------- Layers ----------
   addLayer(kind: "raster" | "text" = "raster") {
-    const layer = kind === "text" ? newTextLayer("Text") : newRasterLayer("Layer " + (state.doc.layers.length + 1));
+    const layer =
+      kind === "text"
+        ? newTextLayer("Text")
+        : newRasterLayer("Layer " + (state.doc.layers.length + 1));
     this._structural("Add layer", () => {
       state.doc.layers.push(layer);
       state.doc.activeLayerId = layer.id;
@@ -356,10 +362,17 @@ export const actions = {
     if (!l || l.type !== "raster") return;
     const a = l.adjustments;
     if (
-      a.brightness === 0 && a.contrast === 0 && a.saturation === 0 &&
-      a.exposure === 0 && a.hue === 0 && a.blur === 0 && a.grayscale === 0 &&
-      a.sepia === 0 && a.invert === 0
-    ) return;
+      a.brightness === 0 &&
+      a.contrast === 0 &&
+      a.saturation === 0 &&
+      a.exposure === 0 &&
+      a.hue === 0 &&
+      a.blur === 0 &&
+      a.grayscale === 0 &&
+      a.sepia === 0 &&
+      a.invert === 0
+    )
+      return;
     this.recordRaster("Apply adjustments", id, () => {
       const out = makeCanvas(l.canvas.width, l.canvas.height);
       const ctx = out.getContext("2d")!;
@@ -374,7 +387,9 @@ export const actions = {
         a.grayscale > 0 ? `grayscale(${a.grayscale}%)` : "",
         a.sepia > 0 ? `sepia(${a.sepia}%)` : "",
         a.invert > 0 ? `invert(${a.invert}%)` : "",
-      ].filter(Boolean).join(" ");
+      ]
+        .filter(Boolean)
+        .join(" ");
       ctx.filter = filter;
       ctx.drawImage(l.canvas, 0, 0);
       l.canvas.getContext("2d")!.clearRect(0, 0, l.canvas.width, l.canvas.height);
@@ -407,10 +422,9 @@ export const actions = {
       layersAfter: cloneLayers(state.doc.layers),
       selectionBefore,
       selectionAfter: state.doc.selection,
+      sizeBefore: { w: wBefore, h: hBefore },
+      sizeAfter: { w: state.doc.width, h: state.doc.height },
     };
-    // stash doc size in layersBefore/After via a sentinel layer? simpler: keep on entry
-    (entry as any).sizeBefore = { w: wBefore, h: hBefore };
-    (entry as any).sizeAfter = { w: state.doc.width, h: state.doc.height };
     pushHistory(entry);
     emit();
   },
@@ -435,8 +449,13 @@ export const actions = {
   },
   endStroke(label = "Paint") {
     if (!pendingStroke) return;
-    const l = state.doc.layers.find((x) => x.id === pendingStroke!.layerId) as RasterLayer | undefined;
-    if (!l) { pendingStroke = null; return; }
+    const l = state.doc.layers.find((x) => x.id === pendingStroke!.layerId) as
+      | RasterLayer
+      | undefined;
+    if (!l) {
+      pendingStroke = null;
+      return;
+    }
     const after = snapshotCanvas(l.canvas);
     pushHistory({
       kind: "raster",
@@ -496,8 +515,11 @@ function applyHistory(e: HistoryEntry, which: "before" | "after") {
     const layers = which === "before" ? e.layersBefore! : e.layersAfter!;
     state.doc.layers = cloneLayers(layers);
     state.doc.selection = (which === "before" ? e.selectionBefore : e.selectionAfter) ?? null;
-    const size = (e as any)[which === "before" ? "sizeBefore" : "sizeAfter"];
-    if (size) { state.doc.width = size.w; state.doc.height = size.h; }
+    const size = which === "before" ? e.sizeBefore : e.sizeAfter;
+    if (size) {
+      state.doc.width = size.w;
+      state.doc.height = size.h;
+    }
     if (!state.doc.layers.find((l) => l.id === state.doc.activeLayerId)) {
       state.doc.activeLayerId = state.doc.layers[state.doc.layers.length - 1]?.id ?? null;
     }

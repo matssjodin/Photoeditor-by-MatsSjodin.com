@@ -78,22 +78,47 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Lovable App" },
-      { name: "description", content: "Canvas Studio Pro is a web-based image editor for in-browser image manipulation." },
+      {
+        name: "description",
+        content: "Canvas Studio Pro is a web-based image editor for in-browser image manipulation.",
+      },
       { name: "author", content: "Lovable" },
       { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Canvas Studio Pro is a web-based image editor for in-browser image manipulation." },
+      {
+        property: "og:description",
+        content: "Canvas Studio Pro is a web-based image editor for in-browser image manipulation.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
       { name: "twitter:title", content: "Lovable App" },
-      { name: "twitter:description", content: "Canvas Studio Pro is a web-based image editor for in-browser image manipulation." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/ba068773-6c5d-4f9e-b80d-f051899b2430/id-preview-37ed5af1--15e2992f-51c0-4530-9e2f-330a9cbd141e.lovable.app-1780487485069.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/ba068773-6c5d-4f9e-b80d-f051899b2430/id-preview-37ed5af1--15e2992f-51c0-4530-9e2f-330a9cbd141e.lovable.app-1780487485069.png" },
+      {
+        name: "twitter:description",
+        content: "Canvas Studio Pro is a web-based image editor for in-browser image manipulation.",
+      },
+      {
+        property: "og:image",
+        content:
+          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/ba068773-6c5d-4f9e-b80d-f051899b2430/id-preview-37ed5af1--15e2992f-51c0-4530-9e2f-330a9cbd141e.lovable.app-1780487485069.png",
+      },
+      {
+        name: "twitter:image",
+        content:
+          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/ba068773-6c5d-4f9e-b80d-f051899b2430/id-preview-37ed5af1--15e2992f-51c0-4530-9e2f-330a9cbd141e.lovable.app-1780487485069.png",
+      },
     ],
     links: [
       {
         rel: "stylesheet",
         href: appCss,
+      },
+      // Text-tool fonts (see src/editor/fonts.ts). Loaded as a stylesheet link
+      // rather than a CSS @import, which the bundler drops (invalid ordering).
+      { rel: "preconnect", href: "https://fonts.googleapis.com" },
+      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Montserrat:wght@400;700&family=Bebas+Neue&family=Oswald:wght@400;700&family=Roboto+Mono:wght@400;700&family=Pacifico&family=Lobster&family=Caveat:wght@400;700&family=Dancing+Script:wght@400;700&family=Anton&family=Merriweather:ital,wght@0,400;0,700;1,400&display=swap",
       },
     ],
   }),

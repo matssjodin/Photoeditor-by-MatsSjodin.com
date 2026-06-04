@@ -161,7 +161,9 @@ export function newTextLayer(text = "Hello"): TextLayer {
 
 export const actions = {
   // ---------- Document ----------
-  newDocument(width: number, height: number, background = "#ffffff") {
+  // `background` may be a CSS colour or "transparent" (or null) for an empty,
+  // transparent background layer.
+  newDocument(width: number, height: number, background: string | null = "#ffffff") {
     state.doc = {
       width,
       height,
@@ -171,7 +173,8 @@ export const actions = {
     };
     state.history = [];
     state.historyIndex = -1;
-    const bg = newRasterLayer("Background", background);
+    const transparent = !background || background === "transparent";
+    const bg = newRasterLayer("Background", transparent ? undefined : background);
     state.doc.layers.push(bg);
     state.doc.activeLayerId = bg.id;
     emit();

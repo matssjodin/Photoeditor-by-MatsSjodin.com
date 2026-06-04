@@ -7,10 +7,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-- Dismissible site notice banner: discloses that editing is local (nothing uploaded),
-  that only browser-local preferences are stored, and that cookieless analytics + error
-  reporting may run; states the software is provided free, "as is", without warranties.
-  Acknowledgement persists in `localStorage`.
+- **New image dialog**: a centered modal with width/height fields, size presets, and a
+  background picker — solid colour, white/black, or **transparent** — replacing the old
+  `window.prompt()` flow. `newDocument` now supports a transparent background.
+- One-time site notice, now shown as a **centered modal** (was a bottom bar): discloses
+  that editing is local (nothing uploaded), that only browser-local preferences are
+  stored, and that cookieless analytics + error reporting may run; states the software is
+  provided free, "as is", without warranties. Acknowledgement persists in `localStorage`.
 - Linked the in-app "by MatsSjodin.com" wordmark to https://matssjodin.com.
 - Social share image (`public/og-image.png`, 1200×630) wired into Open Graph and
   Twitter `summary_large_image` meta; regenerate with `bun run og`.
@@ -48,6 +51,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **Clarified the Crop tool.** Selecting Crop no longer silently swaps to the rectangle
+  tool. You now drag directly to mark the area to keep; the panel shows numbered steps and
+  the live selection size, and a "Crop to selection" button (disabled until you mark an
+  area) or **Enter** applies it.
 - **Toolchain: Bun → npm.** Regenerated `package-lock.json`, moved scripts/CI to
   npm + Node 22, removed `bunfig.toml`. Tests migrated from `bun:test` to **Vitest**
   (`vitest.config.ts`); the `@napi-rs/canvas` polyfill now loads via Vitest `setupFiles`.

@@ -161,14 +161,7 @@ function ToolOptions() {
           </p>
         </div>
       )}
-      {t.tool === "crop" && (
-        <button
-          onClick={() => actions.cropToSelection()}
-          className="mt-2 w-full rounded bg-primary px-2 py-1 text-sm text-primary-foreground hover:opacity-90"
-        >
-          Apply crop to selection
-        </button>
-      )}
+      {t.tool === "crop" && <CropOptions />}
     </div>
   );
 }
@@ -233,6 +226,44 @@ function SelectionOptions({ hint }: { hint: string }) {
           className="w-full rounded border border-border bg-secondary px-2 py-1 text-xs hover:bg-accent"
         >
           Deselect (Esc)
+        </button>
+      )}
+    </div>
+  );
+}
+
+function CropOptions() {
+  const s = useEditor();
+  const sel = s.doc.selection;
+  return (
+    <div className="space-y-2">
+      <ol className="list-decimal space-y-1 pl-4 text-xs text-muted-foreground">
+        <li>Drag on the canvas to mark the area to keep.</li>
+        <li>Click Crop (or press Enter) to trim the image to it.</li>
+      </ol>
+      {sel ? (
+        <p className="text-[11px] text-muted-foreground">
+          Selected:{" "}
+          <span className="tabular-nums text-foreground">
+            {Math.round(sel.w)} × {Math.round(sel.h)} px
+          </span>
+        </p>
+      ) : (
+        <p className="text-[11px] text-muted-foreground">No area marked yet.</p>
+      )}
+      <button
+        onClick={() => actions.cropToSelection()}
+        disabled={!sel}
+        className="w-full rounded bg-primary px-2 py-1 text-sm text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        Crop to selection
+      </button>
+      {sel && (
+        <button
+          onClick={() => actions.setSelection(null)}
+          className="w-full rounded border border-border bg-secondary px-2 py-1 text-xs hover:bg-accent"
+        >
+          Clear area (Esc)
         </button>
       )}
     </div>

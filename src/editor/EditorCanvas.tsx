@@ -1,7 +1,7 @@
 // The interactive canvas. Composites layers and handles tool input.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { actions, useEditor } from "./store";
+import { actions, getState, useEditor } from "./store";
 import {
   buildFilterString,
   makeCanvas,
@@ -191,6 +191,14 @@ export function EditorCanvas() {
           actions.deleteLayer(active.id);
         }
       }
+      // Enter applies the crop when the Crop tool has a marked area.
+      if (e.key === "Enter" && !meta && !typing) {
+        const st = getState();
+        if (st.tool.tool === "crop" && st.doc.selection) {
+          e.preventDefault();
+          actions.cropToSelection();
+        }
+      }
 
       // Single-key tool shortcuts (no modifier, not while typing). These match
       // the hints shown in the toolbar tooltips.
@@ -363,7 +371,9 @@ export function EditorCanvas() {
           tool.tolerance,
         );
       });
-    } else if (tool.tool === "select-rect") {
+    } else if (tool.tool === "select-rect" || tool.tool === "crop") {
+      // Crop reuses the rectangular-selection drag: the user marks the area to
+      // keep, then applies via the panel button or Enter.
       interaction.current = { kind: "select", startX: p.x, startY: p.y };
       actions.setSelection({ x: p.x, y: p.y, w: 0, h: 0 });
     } else if (tool.tool === "move") {

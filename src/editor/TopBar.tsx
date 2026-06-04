@@ -11,11 +11,13 @@ import {
 } from "lucide-react";
 import { actions, useEditor } from "./store";
 import { buildFilterString } from "./types";
-import { useRef } from "react";
+import { useRef, useState } from "react";
+import { NewDocumentDialog } from "./NewDocumentDialog";
 
 export function TopBar() {
   const s = useEditor();
   const fileInput = useRef<HTMLInputElement>(null);
+  const [newOpen, setNewOpen] = useState(false);
 
   const onOpenFile = async (file: File) => {
     const url = URL.createObjectURL(file);
@@ -91,15 +93,10 @@ export function TopBar() {
 
       <div className="mx-2 h-6 w-px bg-border" />
 
-      <MenuButton
-        onClick={() => {
-          const w = +(prompt("Width", "1200") || 0);
-          const h = +(prompt("Height", "800") || 0);
-          if (w > 0 && h > 0) actions.newDocument(w, h);
-        }}
-      >
+      <MenuButton onClick={() => setNewOpen(true)}>
         <FilePlus2 className="h-4 w-4" /> New
       </MenuButton>
+      <NewDocumentDialog open={newOpen} onOpenChange={setNewOpen} />
       <MenuButton onClick={() => fileInput.current?.click()}>
         <FolderOpen className="h-4 w-4" /> Open
       </MenuButton>

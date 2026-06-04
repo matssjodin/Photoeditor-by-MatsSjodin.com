@@ -32,25 +32,32 @@ export function ConsentBanner() {
   };
 
   return (
-    <div
-      role="region"
-      aria-label="Site notice"
-      className="fixed inset-x-0 bottom-0 z-[60] border-t border-border bg-card/95 px-4 py-3 backdrop-blur"
-    >
-      <div className="mx-auto flex max-w-4xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-xs leading-relaxed text-muted-foreground">
-          <span className="font-medium text-foreground">
-            Photo Editor runs entirely in your browser.
-          </span>{" "}
-          Your images and edits never leave your device — nothing is uploaded. Only small
-          preferences (like this dismissal) are stored locally in your browser. This site may use
-          privacy-friendly, cookieless analytics to count visits and may report errors to help fix
-          bugs. The software is provided free, &ldquo;as is&rdquo;, without warranties of any kind.
+    <div className="fixed inset-0 z-[60] grid place-items-center bg-black/60 p-4 backdrop-blur-sm">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="notice-title"
+        className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-2xl"
+      >
+        <h2 id="notice-title" className="text-base font-semibold text-foreground">
+          Welcome to Photo Editor
+        </h2>
+        <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+          This editor runs{" "}
+          <span className="font-medium text-foreground">entirely in your browser</span>
+          —your images and edits never leave your device and nothing is uploaded. Only small
+          preferences (like dismissing this notice) are stored locally in your browser.
+        </p>
+        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+          The site may use privacy-friendly, cookieless analytics to count visits and may report
+          errors to help fix bugs. The software is provided free, &ldquo;as is&rdquo;, without
+          warranties of any kind.
         </p>
         <button
           type="button"
+          autoFocus
           onClick={dismiss}
-          className="shrink-0 self-start rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90 sm:self-auto"
+          className="mt-5 w-full rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
         >
           Got it
         </button>

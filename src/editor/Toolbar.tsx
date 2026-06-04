@@ -73,13 +73,7 @@ export function Toolbar() {
           key={t.id}
           active={s.tool.tool === t.id}
           title={t.label}
-          onClick={() => {
-            actions.setTool({ tool: t.id });
-            if (t.id === "crop") {
-              if (s.doc.selection) actions.cropToSelection();
-              else actions.setTool({ tool: "select-rect" });
-            }
-          }}
+          onClick={() => actions.setTool({ tool: t.id })}
         >
           <t.icon className="h-5 w-5" />
         </ToolButton>

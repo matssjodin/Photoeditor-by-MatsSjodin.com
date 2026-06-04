@@ -1,0 +1,16 @@
+# Normalize line endings: store text as LF in the repo, check out native on Windows.
+* text=auto eol=lf
+
+# Binary assets — never normalize.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+
+# Generated — keep diffs collapsed in reviews.
+src/routeTree.gen.ts linguist-generated=true
+bun.lock linguist-generated=true

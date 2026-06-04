@@ -4,16 +4,17 @@ import { Editor } from "@/editor/Editor";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Lumen — Browser Image Editor" },
+      { title: "Photo Editor by MatsSjodin.com — Browser Image Editor" },
       {
         name: "description",
         content:
-          "A fast, private image editor that runs entirely in your browser. Layers, adjustments, brushes, and more.",
+          "Free online image editor with layers, selections, adjustments, brushes, and text. Runs entirely in your browser — your images never leave your device.",
       },
-      { property: "og:title", content: "Lumen — Browser Image Editor" },
+      { property: "og:title", content: "Photo Editor by MatsSjodin.com — Browser Image Editor" },
       {
         property: "og:description",
-        content: "Edit images locally in your browser with layers, adjustments, and pro tools.",
+        content:
+          "Edit images privately in your browser with layers, masks, adjustments, and pro tools. Nothing is uploaded.",
       },
     ],
   }),

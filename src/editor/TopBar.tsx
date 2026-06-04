@@ -78,8 +78,8 @@ export function TopBar() {
         <div className="grid h-7 w-7 place-items-center rounded-md bg-primary text-primary-foreground">
           <LayersIcon className="h-4 w-4" />
         </div>
-        <span className="text-sm font-semibold tracking-tight">Lumen</span>
-        <span className="text-xs text-muted-foreground">Image Editor</span>
+        <span className="text-sm font-semibold tracking-tight">Photo Editor</span>
+        <span className="hidden text-xs text-muted-foreground sm:inline">by MatsSjodin.com</span>
       </div>
 
       <div className="mx-2 h-6 w-px bg-border" />

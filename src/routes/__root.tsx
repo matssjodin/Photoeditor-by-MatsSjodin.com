@@ -12,6 +12,12 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 
+const SITE_NAME = "Photo Editor by MatsSjodin.com";
+const SITE_URL = "https://photoeditor.matssjodin.com/";
+const SITE_DESCRIPTION =
+  "A fast, private image editor that runs entirely in your browser — layers, " +
+  "selections, adjustments, brushes, and text. Your images never leave your device.";
+
 function NotFoundComponent() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -77,41 +83,25 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      {
-        name: "description",
-        content: "Canvas Studio Pro is a web-based image editor for in-browser image manipulation.",
-      },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      {
-        property: "og:description",
-        content: "Canvas Studio Pro is a web-based image editor for in-browser image manipulation.",
-      },
+      { title: SITE_NAME },
+      { name: "description", content: SITE_DESCRIPTION },
+      { name: "author", content: "MatsSjodin.com" },
+      { name: "theme-color", content: "#1b1b1f" },
+      { property: "og:site_name", content: SITE_NAME },
+      { property: "og:title", content: SITE_NAME },
+      { property: "og:description", content: SITE_DESCRIPTION },
       { property: "og:type", content: "website" },
+      { property: "og:url", content: SITE_URL },
       { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
-      { name: "twitter:title", content: "Lovable App" },
-      {
-        name: "twitter:description",
-        content: "Canvas Studio Pro is a web-based image editor for in-browser image manipulation.",
-      },
-      {
-        property: "og:image",
-        content:
-          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/ba068773-6c5d-4f9e-b80d-f051899b2430/id-preview-37ed5af1--15e2992f-51c0-4530-9e2f-330a9cbd141e.lovable.app-1780487485069.png",
-      },
-      {
-        name: "twitter:image",
-        content:
-          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/ba068773-6c5d-4f9e-b80d-f051899b2430/id-preview-37ed5af1--15e2992f-51c0-4530-9e2f-330a9cbd141e.lovable.app-1780487485069.png",
-      },
+      { name: "twitter:title", content: SITE_NAME },
+      { name: "twitter:description", content: SITE_DESCRIPTION },
     ],
     links: [
       {
         rel: "stylesheet",
         href: appCss,
       },
+      { rel: "canonical", href: SITE_URL },
       // Text-tool fonts (see src/editor/fonts.ts). Loaded as a stylesheet link
       // rather than a CSS @import, which the bundler drops (invalid ordering).
       { rel: "preconnect", href: "https://fonts.googleapis.com" },

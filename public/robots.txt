@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://photoeditor.matssjodin.com/sitemap.xml

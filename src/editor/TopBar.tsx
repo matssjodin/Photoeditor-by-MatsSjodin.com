@@ -5,6 +5,7 @@ import {
   FilePlus2,
   FolderOpen,
   Image as ImageIcon,
+  Scaling,
   Undo2,
   Redo2,
   Layers as LayersIcon,
@@ -13,11 +14,13 @@ import { actions, useEditor } from "./store";
 import { buildFilterString } from "./types";
 import { useRef, useState } from "react";
 import { NewDocumentDialog } from "./NewDocumentDialog";
+import { ResizeImageDialog } from "./ResizeImageDialog";
 
 export function TopBar() {
   const s = useEditor();
   const fileInput = useRef<HTMLInputElement>(null);
   const [newOpen, setNewOpen] = useState(false);
+  const [resizeOpen, setResizeOpen] = useState(false);
 
   const onOpenFile = async (file: File) => {
     const url = URL.createObjectURL(file);
@@ -111,6 +114,10 @@ export function TopBar() {
           e.currentTarget.value = "";
         }}
       />
+      <MenuButton onClick={() => setResizeOpen(true)} disabled={s.doc.layers.length === 0}>
+        <Scaling className="h-4 w-4" /> Resize
+      </MenuButton>
+      <ResizeImageDialog open={resizeOpen} onOpenChange={setResizeOpen} />
 
       <div className="mx-2 h-6 w-px bg-border" />
 

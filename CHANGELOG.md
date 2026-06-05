@@ -7,6 +7,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Resize image**: a new top-bar action opens a modal to scale the whole image (and all
+  layers) to a new size — with an aspect-ratio lock (on by default) so proportions are
+  kept, plus quick scale presets (25/50/100/200%). Undoable.
 - **New image dialog**: a centered modal with width/height fields, size presets, and a
   background picker — solid colour, white/black, or **transparent** — replacing the old
   `window.prompt()` flow. `newDocument` now supports a transparent background.

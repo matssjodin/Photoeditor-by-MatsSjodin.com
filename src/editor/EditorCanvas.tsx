@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { actions, getState, useEditor } from "./store";
 import {
-  buildFilterString,
   makeCanvas,
   type Layer,
   type RasterLayer,
@@ -11,6 +10,16 @@ import {
   type TextLayer,
   type ToolId,
 } from "./types";
+import { compositeDoc, drawLayer, layerSizeOf } from "./composite";
+import {
+  HANDLE_UNITS,
+  localToDoc,
+  rotateDrag,
+  scaleDrag,
+  type HandleId,
+  type Point,
+  type TransformProps,
+} from "./transform";
 import {
   combineMasks,
   featherMask,
@@ -95,12 +104,7 @@ export function EditorCanvas() {
       // its text; skip compositing it here so the two don't render on top of
       // each other (the "double text" ghost).
       if (layer.id === editingTextId) continue;
-      ctx.save();
-      ctx.globalAlpha = layer.opacity;
-      ctx.globalCompositeOperation = layer.blendMode;
-      ctx.filter = buildFilterString(layer.adjustments);
       drawLayer(ctx, layer);
-      ctx.restore();
     }
   }, [s.version, doc, editingTextId]);
 
@@ -144,7 +148,26 @@ export function EditorCanvas() {
         ctx.lineTo(lassoPreview[i].x, lassoPreview[i].y);
       ctx.stroke();
     }
-  }, [doc.selection, doc.width, doc.height, view.zoom, s.version, lassoPreview]);
+
+    // Free-transform handles around the active layer while the Move tool is up.
+    if (tool.tool === "move" && !editingTextId) {
+      const active = doc.layers.find((l) => l.id === doc.activeLayerId);
+      if (active && active.visible && !active.locked) {
+        drawTransformHandles(ctx, active, view.zoom);
+      }
+    }
+  }, [
+    doc.selection,
+    doc.width,
+    doc.height,
+    view.zoom,
+    s.version,
+    lassoPreview,
+    tool.tool,
+    editingTextId,
+    doc.layers,
+    doc.activeLayerId,
+  ]);
 
   // Keyboard: space-to-pan, undo/redo, delete selection, single-key tool switching
   useEffect(() => {
@@ -377,6 +400,20 @@ export function EditorCanvas() {
       interaction.current = { kind: "select", startX: p.x, startY: p.y };
       actions.setSelection({ x: p.x, y: p.y, w: 0, h: 0 });
     } else if (tool.tool === "move") {
+      // Grabbing a transform handle scales/rotates; anywhere else drags.
+      if (!active.locked) {
+        const handle = hitTestHandle(active, p, view.zoom);
+        if (handle) {
+          interaction.current = {
+            kind: "transform",
+            layerId: active.id,
+            handle,
+            size: layerSizeOf(active),
+            start: snapshotProps(active),
+          };
+          return;
+        }
+      }
       interaction.current = {
         kind: "move",
         layerId: active.id,
@@ -429,6 +466,13 @@ export function EditorCanvas() {
         x: it.origX + (p.x - it.startX),
         y: it.origY + (p.y - it.startY),
       });
+    } else if (it.kind === "transform") {
+      const corner = it.handle.length === 2; // nw/ne/se/sw
+      const next =
+        it.handle === "rotate"
+          ? rotateDrag(it.start, it.size, p, e.shiftKey)
+          : scaleDrag(it.start, it.size, it.handle, p, corner ? !e.shiftKey : false);
+      actions.updateLayer(it.layerId, next);
     } else if (it.kind === "lasso") {
       // Append point if it has moved enough — keeps polygon light.
       const last = it.points[it.points.length - 1];
@@ -442,6 +486,14 @@ export function EditorCanvas() {
   const onPointerUp = () => {
     const it = interaction.current;
     if (it?.kind === "paint") actions.endStroke(it.erase ? "Erase" : "Paint");
+    if (it?.kind === "move") {
+      const l = doc.layers.find((x) => x.id === it.layerId);
+      if (l) actions.recordProps("Move", l.id, { x: it.origX, y: it.origY }, { x: l.x, y: l.y });
+    }
+    if (it?.kind === "transform") {
+      const l = doc.layers.find((x) => x.id === it.layerId);
+      if (l) actions.recordProps("Transform", l.id, it.start, snapshotProps(l));
+    }
     if (it?.kind === "select") {
       const sel = doc.selection;
       if (sel && (sel.w < 2 || sel.h < 2)) {
@@ -670,7 +722,100 @@ type InteractionState =
   | { kind: "paint"; lastX: number; lastY: number; layerId: string; erase: boolean }
   | { kind: "select"; startX: number; startY: number }
   | { kind: "move"; layerId: string; startX: number; startY: number; origX: number; origY: number }
+  | {
+      kind: "transform";
+      layerId: string;
+      handle: HandleId;
+      size: { w: number; h: number };
+      start: TransformProps;
+    }
   | { kind: "lasso"; points: { x: number; y: number }[] };
+
+function snapshotProps(l: Layer): TransformProps {
+  return {
+    x: l.x,
+    y: l.y,
+    rotation: l.rotation,
+    scaleX: l.scaleX,
+    scaleY: l.scaleY,
+    flipX: l.flipX,
+    flipY: l.flipY,
+  };
+}
+
+/** Doc-space positions of the 8 scale handles + the rotate handle. */
+function handlePositions(layer: Layer, zoom: number): { id: HandleId; pos: Point }[] {
+  const size = layerSizeOf(layer);
+  const t = snapshotProps(layer);
+  const out: { id: HandleId; pos: Point }[] = (
+    Object.keys(HANDLE_UNITS) as (keyof typeof HANDLE_UNITS)[]
+  ).map((id) => ({
+    id,
+    pos: localToDoc(t, { x: HANDLE_UNITS[id].x * size.w, y: HANDLE_UNITS[id].y * size.h }),
+  }));
+  // Rotate handle floats a fixed screen distance beyond the top-centre edge.
+  const top = localToDoc(t, { x: size.w / 2, y: 0 });
+  const center = localToDoc(t, { x: size.w / 2, y: size.h / 2 });
+  const len = Math.hypot(top.x - center.x, top.y - center.y) || 1;
+  const dir = { x: (top.x - center.x) / len, y: (top.y - center.y) / len };
+  out.push({
+    id: "rotate",
+    pos: { x: top.x + dir.x * (28 / zoom), y: top.y + dir.y * (28 / zoom) },
+  });
+  return out;
+}
+
+function hitTestHandle(layer: Layer, p: Point, zoom: number): HandleId | null {
+  const hit = 9 / zoom;
+  for (const h of handlePositions(layer, zoom)) {
+    if (Math.hypot(p.x - h.pos.x, p.y - h.pos.y) <= hit) return h.id;
+  }
+  return null;
+}
+
+function drawTransformHandles(ctx: CanvasRenderingContext2D, layer: Layer, zoom: number) {
+  const size = layerSizeOf(layer);
+  const t = snapshotProps(layer);
+  const corners = [
+    { x: 0, y: 0 },
+    { x: size.w, y: 0 },
+    { x: size.w, y: size.h },
+    { x: 0, y: size.h },
+  ].map((p) => localToDoc(t, p));
+
+  ctx.save();
+  ctx.setLineDash([]);
+  ctx.strokeStyle = "#7cc4ff";
+  ctx.lineWidth = 1.5 / zoom;
+  ctx.beginPath();
+  ctx.moveTo(corners[0].x, corners[0].y);
+  for (let i = 1; i < corners.length; i++) ctx.lineTo(corners[i].x, corners[i].y);
+  ctx.closePath();
+  ctx.stroke();
+
+  const handles = handlePositions(layer, zoom);
+  const rotate = handles.find((h) => h.id === "rotate")!;
+  const top = localToDoc(t, { x: size.w / 2, y: 0 });
+  ctx.beginPath();
+  ctx.moveTo(top.x, top.y);
+  ctx.lineTo(rotate.pos.x, rotate.pos.y);
+  ctx.stroke();
+
+  const hs = 4.5 / zoom;
+  ctx.fillStyle = "#ffffff";
+  for (const h of handles) {
+    if (h.id === "rotate") {
+      ctx.beginPath();
+      ctx.arc(h.pos.x, h.pos.y, hs, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    } else {
+      ctx.fillRect(h.pos.x - hs, h.pos.y - hs, hs * 2, hs * 2);
+      ctx.strokeRect(h.pos.x - hs, h.pos.y - hs, hs * 2, hs * 2);
+    }
+  }
+  ctx.restore();
+}
 
 function clamp(n: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, n));
@@ -680,24 +825,6 @@ function clamp(n: number, lo: number, hi: number) {
 function state_activeRaster(): RasterLayer | null {
   const l = actions.activeLayer();
   return l && l.type === "raster" ? l : null;
-}
-
-function drawLayer(ctx: CanvasRenderingContext2D, layer: Layer) {
-  ctx.translate(layer.x, layer.y);
-  if (layer.rotation) ctx.rotate((layer.rotation * Math.PI) / 180);
-  if (layer.flipX || layer.flipY) ctx.scale(layer.flipX ? -1 : 1, layer.flipY ? -1 : 1);
-  if (layer.type === "raster") {
-    ctx.drawImage(layer.canvas, 0, 0);
-  } else {
-    ctx.fillStyle = layer.color;
-    const weight = layer.bold ? "700" : "400";
-    const style = layer.italic ? "italic" : "normal";
-    ctx.font = `${style} ${weight} ${layer.fontSize}px ${layer.fontFamily}`;
-    ctx.textBaseline = "top";
-    layer.text.split("\n").forEach((line, i) => {
-      ctx.fillText(line, 0, i * layer.fontSize * 1.2);
-    });
-  }
 }
 
 /**
@@ -825,19 +952,7 @@ function floodFill(
 }
 
 function sampleColor(layers: Layer[], x: number, y: number, w: number, h: number): string | null {
-  const tmp = document.createElement("canvas");
-  tmp.width = w;
-  tmp.height = h;
-  const ctx = tmp.getContext("2d")!;
-  for (const l of layers) {
-    if (!l.visible) continue;
-    ctx.save();
-    ctx.globalAlpha = l.opacity;
-    ctx.globalCompositeOperation = l.blendMode;
-    ctx.filter = buildFilterString(l.adjustments);
-    drawLayer(ctx, l);
-    ctx.restore();
-  }
-  const d = ctx.getImageData(x, y, 1, 1).data;
+  const flat = compositeDoc({ width: w, height: h, layers, activeLayerId: null, selection: null });
+  const d = flat.getContext("2d")!.getImageData(x, y, 1, 1).data;
   return "#" + [d[0], d[1], d[2]].map((v) => v.toString(16).padStart(2, "0")).join("");
 }

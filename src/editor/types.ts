@@ -8,6 +8,9 @@ export type ToolId =
   | "brush"
   | "eraser"
   | "fill"
+  | "shape"
+  | "gradient"
+  | "clone"
   | "text"
   | "crop"
   | "eyedropper";
@@ -62,6 +65,8 @@ export interface BaseLayer {
   x: number;
   y: number;
   rotation: number; // degrees
+  scaleX: number; // 1 = natural size; always positive (flips carry the sign)
+  scaleY: number;
   flipX: boolean;
   flipY: boolean;
 }
@@ -70,6 +75,10 @@ export interface RasterLayer extends BaseLayer {
   type: "raster";
   // Off-screen canvas storing the pixels for this layer
   canvas: HTMLCanvasElement;
+  // Optional layer mask, same size as `canvas`. Alpha > 0 = visible.
+  // Compositing applies it via destination-in; pixels stay intact until
+  // the mask is applied (baked) or deleted.
+  mask?: HTMLCanvasElement;
 }
 
 export interface TextLayer extends BaseLayer {

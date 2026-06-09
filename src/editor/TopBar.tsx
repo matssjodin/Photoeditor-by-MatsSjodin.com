@@ -11,7 +11,7 @@ import {
   Layers as LayersIcon,
 } from "lucide-react";
 import { actions, useEditor } from "./store";
-import { buildFilterString } from "./types";
+import { compositeDoc } from "./composite";
 import { useRef, useState } from "react";
 import { NewDocumentDialog } from "./NewDocumentDialog";
 import { ResizeImageDialog } from "./ResizeImageDialog";
@@ -33,35 +33,7 @@ export function TopBar() {
   };
 
   const exportImage = (type: "png" | "jpeg" | "webp") => {
-    const out = document.createElement("canvas");
-    out.width = s.doc.width;
-    out.height = s.doc.height;
-    const ctx = out.getContext("2d")!;
-    if (type !== "png") {
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, out.width, out.height);
-    }
-    for (const l of s.doc.layers) {
-      if (!l.visible) continue;
-      ctx.save();
-      ctx.globalAlpha = l.opacity;
-      ctx.globalCompositeOperation = l.blendMode;
-      ctx.filter = buildFilterString(l.adjustments);
-      ctx.translate(l.x, l.y);
-      if (l.rotation) ctx.rotate((l.rotation * Math.PI) / 180);
-      if (l.flipX || l.flipY) ctx.scale(l.flipX ? -1 : 1, l.flipY ? -1 : 1);
-      if (l.type === "raster") {
-        ctx.drawImage(l.canvas, 0, 0);
-      } else {
-        ctx.fillStyle = l.color;
-        const weight = l.bold ? "700" : "400";
-        const style = l.italic ? "italic" : "normal";
-        ctx.font = `${style} ${weight} ${l.fontSize}px ${l.fontFamily}`;
-        ctx.textBaseline = "top";
-        l.text.split("\n").forEach((line, i) => ctx.fillText(line, 0, i * l.fontSize * 1.2));
-      }
-      ctx.restore();
-    }
+    const out = compositeDoc(s.doc, { background: type !== "png" ? "#ffffff" : undefined });
     const mime = `image/${type}`;
     out.toBlob(
       (blob) => {

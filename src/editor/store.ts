@@ -34,10 +34,17 @@ interface HistoryEntry {
   label: string;
   // For raster ops we store a snapshot of the affected layer's bitmap.
   // For structural ops (add/delete/reorder) we store the whole layer list snapshot.
-  kind: "raster" | "structural";
+  // For props ops (move/transform) we store shallow before/after layer props.
+  kind: "raster" | "structural" | "props";
   layerId?: string;
   before?: ImageData;
   after?: ImageData;
+  // Mask snapshots accompany raster entries when the layer has a mask, so
+  // rotate/flip/undo keep pixels and mask aligned.
+  maskBefore?: ImageData;
+  maskAfter?: ImageData;
+  propsBefore?: Partial<Layer>;
+  propsAfter?: Partial<Layer>;
   layersBefore?: Layer[];
   layersAfter?: Layer[];
   selectionBefore?: Selection | null;
@@ -129,6 +136,8 @@ export function newRasterLayer(name = "Layer", fill?: string): RasterLayer {
     x: 0,
     y: 0,
     rotation: 0,
+    scaleX: 1,
+    scaleY: 1,
     flipX: false,
     flipY: false,
     canvas,
@@ -148,6 +157,8 @@ export function newTextLayer(text = "Hello"): TextLayer {
     x: state.doc.width / 2,
     y: state.doc.height / 2,
     rotation: 0,
+    scaleX: 1,
+    scaleY: 1,
     flipX: false,
     flipY: false,
     text,
@@ -236,7 +247,7 @@ export const actions = {
       if (src.type === "raster") {
         const c = makeCanvas(src.canvas.width, src.canvas.height);
         c.getContext("2d")!.drawImage(src.canvas, 0, 0);
-        copy = { ...src, id: uid(), name: src.name + " copy", canvas: c };
+        copy = { ...src, id: uid(), name: src.name + " copy", canvas: c, mask: cloneMask(src) };
       } else {
         copy = { ...src, id: uid(), name: src.name + " copy" };
       }
@@ -285,8 +296,7 @@ export const actions = {
   rotateActive(deg: 90 | -90 | 180) {
     const l = this.activeRaster();
     if (!l) return;
-    this.recordRaster("Rotate", l.id, () => {
-      const { canvas } = l;
+    const rotate = (canvas: HTMLCanvasElement) => {
       const w = canvas.width;
       const h = canvas.height;
       const nw = deg === 180 ? w : h;
@@ -296,17 +306,20 @@ export const actions = {
       ctx.translate(nw / 2, nh / 2);
       ctx.rotate((deg * Math.PI) / 180);
       ctx.drawImage(canvas, -w / 2, -h / 2);
-      l.canvas.width = nw;
-      l.canvas.height = nh;
-      l.canvas.getContext("2d")!.drawImage(out, 0, 0);
+      canvas.width = nw;
+      canvas.height = nh;
+      canvas.getContext("2d")!.drawImage(out, 0, 0);
+    };
+    this.recordRaster("Rotate", l.id, () => {
+      rotate(l.canvas);
+      if (l.mask) rotate(l.mask);
     });
   },
 
   flipActive(axis: "x" | "y") {
     const l = this.activeRaster();
     if (!l) return;
-    this.recordRaster("Flip", l.id, () => {
-      const { canvas } = l;
+    const flip = (canvas: HTMLCanvasElement) => {
       const out = makeCanvas(canvas.width, canvas.height);
       const ctx = out.getContext("2d")!;
       ctx.translate(axis === "x" ? canvas.width : 0, axis === "y" ? canvas.height : 0);
@@ -314,6 +327,10 @@ export const actions = {
       ctx.drawImage(canvas, 0, 0);
       canvas.getContext("2d")!.clearRect(0, 0, canvas.width, canvas.height);
       canvas.getContext("2d")!.drawImage(out, 0, 0);
+    };
+    this.recordRaster("Flip", l.id, () => {
+      flip(l.canvas);
+      if (l.mask) flip(l.mask);
     });
   },
 
@@ -326,6 +343,11 @@ export const actions = {
           const out = makeCanvas(w, h);
           out.getContext("2d")!.drawImage(l.canvas, 0, 0, w, h);
           l.canvas = out;
+          if (l.mask) {
+            const m = makeCanvas(w, h);
+            m.getContext("2d")!.drawImage(l.mask, 0, 0, w, h);
+            l.mask = m;
+          }
         } else {
           l.x *= sx;
           l.y *= sy;
@@ -348,6 +370,11 @@ export const actions = {
           const out = makeCanvas(w, h);
           out.getContext("2d")!.drawImage(l.canvas, -x, -y);
           l.canvas = out;
+          if (l.mask) {
+            const m = makeCanvas(w, h);
+            m.getContext("2d")!.drawImage(l.mask, -x, -y);
+            l.mask = m;
+          }
         } else {
           l.x -= x;
           l.y -= y;
@@ -437,36 +464,64 @@ export const actions = {
     const l = state.doc.layers.find((x) => x.id === layerId);
     if (!l || l.type !== "raster") return;
     const before = snapshotCanvas(l.canvas);
+    const maskBefore = l.mask ? snapshotCanvas(l.mask) : undefined;
     mutate();
     const updated = state.doc.layers.find((x) => x.id === layerId) as RasterLayer;
     const after = snapshotCanvas(updated.canvas);
-    pushHistory({ kind: "raster", label, layerId, before, after });
+    const maskAfter = updated.mask ? snapshotCanvas(updated.mask) : undefined;
+    pushHistory({ kind: "raster", label, layerId, before, after, maskBefore, maskAfter });
+    emit();
+  },
+
+  /**
+   * Record a change to a layer's lightweight props (position, rotation,
+   * scale, flips). The caller applies the change; this just stores the
+   * before/after patches so undo/redo can replay them.
+   */
+  recordProps(label: string, layerId: string, before: Partial<Layer>, after: Partial<Layer>) {
+    const keys = Object.keys(before) as (keyof Layer)[];
+    const l = state.doc.layers.find((x) => x.id === layerId);
+    if (!l || keys.every((k) => before[k] === after[k])) return;
+    pushHistory({ kind: "props", label, layerId, propsBefore: before, propsAfter: after });
     emit();
   },
 
   /** For continuous painting strokes: call beginStroke before, endStroke after. */
-  beginStroke(layerId: string) {
+  beginStroke(layerId: string, target: "pixels" | "mask" = "pixels") {
     const l = state.doc.layers.find((x) => x.id === layerId);
     if (!l || l.type !== "raster") return;
-    pendingStroke = { layerId, before: snapshotCanvas(l.canvas) };
+    const canvas = target === "mask" ? l.mask : l.canvas;
+    if (!canvas) return;
+    pendingStroke = { layerId, target, before: snapshotCanvas(canvas) };
   },
   endStroke(label = "Paint") {
     if (!pendingStroke) return;
     const l = state.doc.layers.find((x) => x.id === pendingStroke!.layerId) as
       | RasterLayer
       | undefined;
-    if (!l) {
+    const canvas = pendingStroke.target === "mask" ? l?.mask : l?.canvas;
+    if (!l || !canvas) {
       pendingStroke = null;
       return;
     }
-    const after = snapshotCanvas(l.canvas);
-    pushHistory({
-      kind: "raster",
-      label,
-      layerId: pendingStroke.layerId,
-      before: pendingStroke.before,
-      after,
-    });
+    const after = snapshotCanvas(canvas);
+    pushHistory(
+      pendingStroke.target === "mask"
+        ? {
+            kind: "raster",
+            label,
+            layerId: pendingStroke.layerId,
+            maskBefore: pendingStroke.before,
+            maskAfter: after,
+          }
+        : {
+            kind: "raster",
+            label,
+            layerId: pendingStroke.layerId,
+            before: pendingStroke.before,
+            after,
+          },
+    );
     pendingStroke = null;
     emit();
   },
@@ -487,7 +542,7 @@ export const actions = {
   },
 };
 
-let pendingStroke: { layerId: string; before: ImageData } | null = null;
+let pendingStroke: { layerId: string; target: "pixels" | "mask"; before: ImageData } | null = null;
 
 function snapshotCanvas(c: HTMLCanvasElement): ImageData {
   return c.getContext("2d")!.getImageData(0, 0, c.width, c.height);
@@ -498,22 +553,43 @@ function cloneLayers(layers: Layer[]): Layer[] {
     if (l.type === "raster") {
       const c = makeCanvas(l.canvas.width, l.canvas.height);
       c.getContext("2d")!.drawImage(l.canvas, 0, 0);
-      return { ...l, canvas: c, adjustments: { ...l.adjustments } };
+      return { ...l, canvas: c, mask: cloneMask(l), adjustments: { ...l.adjustments } };
     }
     return { ...l, adjustments: { ...l.adjustments } };
   });
+}
+
+function cloneMask(l: RasterLayer): HTMLCanvasElement | undefined {
+  if (!l.mask) return undefined;
+  const m = makeCanvas(l.mask.width, l.mask.height);
+  m.getContext("2d")!.drawImage(l.mask, 0, 0);
+  return m;
 }
 
 function applyHistory(e: HistoryEntry, which: "before" | "after") {
   if (e.kind === "raster" && e.layerId) {
     const l = state.doc.layers.find((x) => x.id === e.layerId) as RasterLayer | undefined;
     if (!l) return;
-    const data = which === "before" ? e.before! : e.after!;
-    if (l.canvas.width !== data.width || l.canvas.height !== data.height) {
-      l.canvas.width = data.width;
-      l.canvas.height = data.height;
+    const data = which === "before" ? e.before : e.after;
+    if (data) {
+      if (l.canvas.width !== data.width || l.canvas.height !== data.height) {
+        l.canvas.width = data.width;
+        l.canvas.height = data.height;
+      }
+      l.canvas.getContext("2d")!.putImageData(data, 0, 0);
     }
-    l.canvas.getContext("2d")!.putImageData(data, 0, 0);
+    const maskData = which === "before" ? e.maskBefore : e.maskAfter;
+    if (maskData && l.mask) {
+      if (l.mask.width !== maskData.width || l.mask.height !== maskData.height) {
+        l.mask.width = maskData.width;
+        l.mask.height = maskData.height;
+      }
+      l.mask.getContext("2d")!.putImageData(maskData, 0, 0);
+    }
+  } else if (e.kind === "props" && e.layerId) {
+    const l = state.doc.layers.find((x) => x.id === e.layerId);
+    if (!l) return;
+    Object.assign(l, which === "before" ? e.propsBefore : e.propsAfter);
   } else if (e.kind === "structural") {
     const layers = which === "before" ? e.layersBefore! : e.layersAfter!;
     state.doc.layers = cloneLayers(layers);

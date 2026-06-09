@@ -120,6 +120,33 @@ describe("history: raster pixel undo/redo", () => {
   });
 });
 
+describe("history: props undo/redo", () => {
+  test("recordProps round-trips a move/transform", () => {
+    const layer = activeRaster();
+    layer.x = 10;
+    layer.scaleX = 2;
+    actions.recordProps(
+      "Transform",
+      layer.id,
+      { x: 0, scaleX: 1 },
+      { x: layer.x, scaleX: layer.scaleX },
+    );
+    actions.undo();
+    expect(activeRaster().x).toBe(0);
+    expect(activeRaster().scaleX).toBe(1);
+    actions.redo();
+    expect(activeRaster().x).toBe(10);
+    expect(activeRaster().scaleX).toBe(2);
+  });
+
+  test("recordProps with no change adds no history entry", () => {
+    const layer = activeRaster();
+    const len = getState().history.length;
+    actions.recordProps("Move", layer.id, { x: 0, y: 0 }, { x: 0, y: 0 });
+    expect(getState().history.length).toBe(len);
+  });
+});
+
 describe("history bounds", () => {
   test("undo with empty history is a safe no-op", () => {
     expect(() => actions.undo()).not.toThrow();

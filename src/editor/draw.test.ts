@@ -77,6 +77,42 @@ describe("drawShape", () => {
   });
 });
 
+describe("drawGradient", () => {
+  test("linear gradient runs from start to end colour", async () => {
+    const { drawGradient } = await import("./draw");
+    const c = makeCanvas(40, 10);
+    drawGradient(
+      c.getContext("2d")!,
+      { kind: "linear", from: "#ff0000", to: "#0000ff" },
+      0,
+      5,
+      40,
+      5,
+      40,
+      10,
+    );
+    expect(px(c, 1, 5)[0]).toBeGreaterThan(200); // red end
+    expect(px(c, 38, 5)[2]).toBeGreaterThan(200); // blue end
+  });
+
+  test("fade to transparent ends with zero alpha", async () => {
+    const { drawGradient } = await import("./draw");
+    const c = makeCanvas(40, 10);
+    drawGradient(
+      c.getContext("2d")!,
+      { kind: "linear", from: "#ff0000", to: null },
+      0,
+      5,
+      40,
+      5,
+      40,
+      10,
+    );
+    expect(px(c, 1, 5)[3]).toBeGreaterThan(200);
+    expect(px(c, 39, 5)[3]).toBeLessThan(30);
+  });
+});
+
 describe("clippedLayerDraw", () => {
   test("compensates for the layer offset", () => {
     actions.newDocument(40, 40, "transparent");

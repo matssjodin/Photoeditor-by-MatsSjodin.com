@@ -101,6 +101,47 @@ export function drawShape(
   ctx.restore();
 }
 
+export interface GradientStyle {
+  kind: "linear" | "radial";
+  from: string;
+  to: string | null; // null = fade to transparent
+}
+
+/** Convert #rrggbb to rgba() with the given alpha; returns input if not hex. */
+export function hexToRgba(hex: string, alpha: number): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex);
+  if (!m) return hex;
+  const n = parseInt(m[1], 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
+}
+
+/**
+ * Fill the doc-space rect (0,0,w,h) with a gradient defined by the drag
+ * from (x0,y0) to (x1,y1).
+ */
+export function drawGradient(
+  ctx: CanvasRenderingContext2D,
+  style: GradientStyle,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  w: number,
+  h: number,
+) {
+  const to = style.to ?? hexToRgba(style.from, 0);
+  const grad =
+    style.kind === "linear"
+      ? ctx.createLinearGradient(x0, y0, x1, y1)
+      : ctx.createRadialGradient(x0, y0, 0, x0, y0, Math.hypot(x1 - x0, y1 - y0) || 1);
+  grad.addColorStop(0, style.from);
+  grad.addColorStop(1, to);
+  ctx.save();
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, h);
+  ctx.restore();
+}
+
 /**
  * Run a doc-space drawing operation against a raster layer's canvas,
  * compensating for the layer's offset and clipping to the selection

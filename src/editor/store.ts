@@ -33,6 +33,9 @@ interface ToolState {
   shapeFill: boolean; // fill with the primary colour
   shapeStroke: boolean; // outline with the secondary colour
   shapeStrokeWidth: number;
+  // Gradient tool
+  gradientKind: "linear" | "radial";
+  gradientToTransparent: boolean; // fade to transparent instead of the secondary colour
 }
 
 interface HistoryEntry {
@@ -95,6 +98,8 @@ const state: State = {
     shapeFill: true,
     shapeStroke: false,
     shapeStrokeWidth: 4,
+    gradientKind: "linear",
+    gradientToTransparent: false,
   },
   history: [],
   historyIndex: -1,

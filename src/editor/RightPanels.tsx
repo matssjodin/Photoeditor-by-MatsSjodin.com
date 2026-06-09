@@ -147,6 +147,7 @@ function ToolOptions() {
         </>
       )}
       {t.tool === "shape" && <ShapeOptions />}
+      {t.tool === "gradient" && <GradientOptions />}
       {t.tool === "text" && (
         <div className="space-y-2">
           <FontPicker value={t.fontFamily} onChange={(v) => actions.setTool({ fontFamily: v })} />
@@ -263,6 +264,59 @@ function ShapeOptions() {
       )}
       <p className="text-xs text-muted-foreground">
         Drag on the canvas to draw. Hold Shift for squares, circles and 45° lines.
+      </p>
+    </div>
+  );
+}
+
+function GradientOptions() {
+  const s = useEditor();
+  const t = s.tool;
+  const kinds: { id: typeof t.gradientKind; label: string }[] = [
+    { id: "linear", label: "Linear" },
+    { id: "radial", label: "Radial" },
+  ];
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-1">
+        {kinds.map((k) => (
+          <button
+            key={k.id}
+            onClick={() => actions.setTool({ gradientKind: k.id })}
+            className={
+              "flex-1 rounded border px-2 py-1 text-[11px] " +
+              (t.gradientKind === k.id
+                ? "border-primary bg-primary/15 text-foreground"
+                : "border-border bg-secondary text-muted-foreground hover:text-foreground")
+            }
+          >
+            {k.label}
+          </button>
+        ))}
+      </div>
+      <label className="flex items-center gap-2 text-xs text-muted-foreground">
+        <input
+          type="checkbox"
+          checked={t.gradientToTransparent}
+          onChange={(e) => actions.setTool({ gradientToTransparent: e.target.checked })}
+        />
+        Fade to transparent
+      </label>
+      {!t.gradientToTransparent && (
+        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+          End colour
+          <input
+            type="color"
+            value={t.secondaryColor}
+            onChange={(e) => actions.setTool({ secondaryColor: e.target.value })}
+            className="h-6 w-8 cursor-pointer rounded border border-border bg-transparent"
+            aria-label="Gradient end colour"
+          />
+        </label>
+      )}
+      <p className="text-xs text-muted-foreground">
+        Drag from the start to the end of the fade. Hold Shift to snap to 45°. Fills the layer (or
+        the current selection).
       </p>
     </div>
   );

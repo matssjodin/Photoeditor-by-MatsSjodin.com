@@ -1,4 +1,4 @@
-// The interactive canvas. Composites layers and handles tool input.
+﻿// The interactive canvas. Composites layers and handles tool input.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { actions, getState, useEditor } from "./store";
@@ -27,7 +27,15 @@ import {
   maskFromWand,
   selectionFromMask,
 } from "./selection";
-import { clippedLayerDraw, constrainShape, drawShape, type ShapeStyle } from "./draw";
+import {
+  clippedLayerDraw,
+  constrainShape,
+  drawGradient,
+  drawShape,
+  hexToRgba,
+  type GradientStyle,
+  type ShapeStyle,
+} from "./draw";
 import { FONTS } from "./fonts";
 import { Bold, Italic, Check } from "lucide-react";
 
@@ -70,8 +78,14 @@ export function EditorCanvas() {
   const interaction = useRef<InteractionState | null>(null);
   // Live preview of the lasso polygon while the user is drawing it.
   const [lassoPreview, setLassoPreview] = useState<{ x: number; y: number }[] | null>(null);
-  // Live preview of a shape being dragged out.
+  // Live preview of a shape or gradient being dragged out.
   const [shapePreview, setShapePreview] = useState<{
+    x0: number;
+    y0: number;
+    x1: number;
+    y1: number;
+  } | null>(null);
+  const [gradientPreview, setGradientPreview] = useState<{
     x0: number;
     y0: number;
     x1: number;
@@ -160,6 +174,34 @@ export function EditorCanvas() {
       ctx.stroke();
     }
 
+    if (gradientPreview) {
+      // WYSIWYG preview of the gradient across the doc, clipped to the selection.
+      ctx.save();
+      if (doc.selection) {
+        ctx.beginPath();
+        ctx.rect(doc.selection.x, doc.selection.y, doc.selection.w, doc.selection.h);
+        ctx.clip();
+      }
+      drawGradient(
+        ctx,
+        gradientStyleOf(tool),
+        gradientPreview.x0,
+        gradientPreview.y0,
+        gradientPreview.x1,
+        gradientPreview.y1,
+        doc.width,
+        doc.height,
+      );
+      ctx.restore();
+      ctx.strokeStyle = "#7cc4ff";
+      ctx.lineWidth = 1.5 / view.zoom;
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(gradientPreview.x0, gradientPreview.y0);
+      ctx.lineTo(gradientPreview.x1, gradientPreview.y1);
+      ctx.stroke();
+    }
+
     if (shapePreview) {
       drawShape(
         ctx,
@@ -186,6 +228,7 @@ export function EditorCanvas() {
     s.version,
     lassoPreview,
     shapePreview,
+    gradientPreview,
     tool,
     editingTextId,
     doc.layers,
@@ -323,7 +366,7 @@ export function EditorCanvas() {
       const tag = (e.target as HTMLElement).tagName;
       if (tag !== "TEXTAREA") {
         commitTextEdit();
-        // Don't process this click further — let user place a new cursor next time.
+        // Don't process this click further â€” let user place a new cursor next time.
         return;
       }
       return;
@@ -429,6 +472,18 @@ export function EditorCanvas() {
         y1: p.y,
       };
       setShapePreview({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
+    } else if (tool.tool === "gradient") {
+      const raster = actions.activeRaster();
+      if (!raster) return;
+      interaction.current = {
+        kind: "gradient",
+        layerId: raster.id,
+        x0: p.x,
+        y0: p.y,
+        x1: p.x,
+        y1: p.y,
+      };
+      setGradientPreview({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
     } else if (tool.tool === "select-rect" || tool.tool === "crop") {
       // Crop reuses the rectangular-selection drag: the user marks the area to
       // keep, then applies via the panel button or Enter.
@@ -515,8 +570,15 @@ export function EditorCanvas() {
       it.x1 = end.x1;
       it.y1 = end.y1;
       setShapePreview({ x0: it.x0, y0: it.y0, x1: it.x1, y1: it.y1 });
+    } else if (it.kind === "gradient") {
+      const end = e.shiftKey
+        ? constrainShape("line", it.x0, it.y0, p.x, p.y)
+        : { x1: p.x, y1: p.y };
+      it.x1 = end.x1;
+      it.y1 = end.y1;
+      setGradientPreview({ x0: it.x0, y0: it.y0, x1: it.x1, y1: it.y1 });
     } else if (it.kind === "lasso") {
-      // Append point if it has moved enough — keeps polygon light.
+      // Append point if it has moved enough â€” keeps polygon light.
       const last = it.points[it.points.length - 1];
       if (Math.hypot(p.x - last.x, p.y - last.y) > 2 / view.zoom) {
         it.points.push(p);
@@ -557,6 +619,18 @@ export function EditorCanvas() {
         commitSelection(mask);
       }
       setLassoPreview(null);
+    }
+    if (it?.kind === "gradient") {
+      setGradientPreview(null);
+      const raster = actions.activeRaster();
+      if (raster && raster.id === it.layerId && Math.hypot(it.x1 - it.x0, it.y1 - it.y0) >= 2) {
+        const style = gradientStyleOf(tool);
+        actions.recordRaster("Gradient", raster.id, () => {
+          clippedLayerDraw(raster, doc.selection, (ctx) =>
+            drawGradient(ctx, style, it.x0, it.y0, it.x1, it.y1, doc.width, doc.height),
+          );
+        });
+      }
     }
     if (it?.kind === "shape") {
       setShapePreview(null);
@@ -624,7 +698,7 @@ export function EditorCanvas() {
             const invZ = 1 / view.zoom;
             return (
               <>
-                {/* Floating formatting toolbar — counter-scaled so it stays a comfortable size */}
+                {/* Floating formatting toolbar â€” counter-scaled so it stays a comfortable size */}
                 <div
                   onPointerDown={(e) => e.stopPropagation()}
                   onWheel={(e) => e.stopPropagation()}
@@ -706,7 +780,7 @@ export function EditorCanvas() {
                   value={layer.text}
                   autoFocus
                   spellCheck={false}
-                  placeholder="Type your text…"
+                  placeholder="Type your textâ€¦"
                   onChange={(e) => actions.updateLayer(layer.id, { text: e.target.value })}
                   onPointerDown={(e) => e.stopPropagation()}
                   onWheel={(e) => e.stopPropagation()}
@@ -745,14 +819,14 @@ export function EditorCanvas() {
 
       {/* HUD */}
       <div className="pointer-events-none absolute bottom-3 left-3 rounded-md bg-black/50 px-2 py-1 text-xs text-white/80 backdrop-blur">
-        {Math.round(view.zoom * 100)}% · {doc.width}×{doc.height}px
+        {Math.round(view.zoom * 100)}% Â· {doc.width}Ã—{doc.height}px
       </div>
       <div className="absolute bottom-3 right-3 flex gap-1 text-xs">
         <button
           onClick={() => setView((v) => ({ ...v, zoom: clamp(v.zoom / 1.25, MIN_ZOOM, MAX_ZOOM) }))}
           className="rounded bg-secondary px-2 py-1"
         >
-          −
+          âˆ’
         </button>
         <button onClick={fitView} className="rounded bg-secondary px-2 py-1">
           Fit
@@ -789,7 +863,22 @@ type InteractionState =
       start: TransformProps;
     }
   | { kind: "shape"; layerId: string; x0: number; y0: number; x1: number; y1: number }
+  | { kind: "gradient"; layerId: string; x0: number; y0: number; x1: number; y1: number }
   | { kind: "lasso"; points: { x: number; y: number }[] };
+
+/** Resolve the gradient tool's options into a concrete gradient style. */
+function gradientStyleOf(tool: {
+  gradientKind: GradientStyle["kind"];
+  gradientToTransparent: boolean;
+  brushColor: string;
+  secondaryColor: string;
+}): GradientStyle {
+  return {
+    kind: tool.gradientKind,
+    from: tool.brushColor,
+    to: tool.gradientToTransparent ? null : tool.secondaryColor,
+  };
+}
 
 /** Resolve the shape tool's options into concrete fill/stroke colours. */
 function shapeStyleOf(tool: {
@@ -899,7 +988,7 @@ function clamp(n: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, n));
 }
 
-/** Active raster layer ignoring lock state — wand only reads pixels. */
+/** Active raster layer ignoring lock state â€” wand only reads pixels. */
 function state_activeRaster(): RasterLayer | null {
   const l = actions.activeLayer();
   return l && l.type === "raster" ? l : null;
@@ -929,7 +1018,7 @@ function paintStamp(
     const tctx = tmp.getContext("2d")!;
     const grad = tctx.createRadialGradient(x, y, r * hardness, x, y, r);
     grad.addColorStop(0, color);
-    grad.addColorStop(1, erase ? "rgba(0,0,0,0)" : hexWithAlpha(tool.brushColor, 0));
+    grad.addColorStop(1, erase ? "rgba(0,0,0,0)" : hexToRgba(tool.brushColor, 0));
     tctx.fillStyle = grad;
     tctx.beginPath();
     tctx.arc(x, y, r, 0, Math.PI * 2);
@@ -952,20 +1041,13 @@ function paintStamp(
   }
   const grad = ctx.createRadialGradient(x, y, r * hardness, x, y, r);
   grad.addColorStop(0, color);
-  grad.addColorStop(1, erase ? "rgba(0,0,0,0)" : hexWithAlpha(tool.brushColor, 0));
+  grad.addColorStop(1, erase ? "rgba(0,0,0,0)" : hexToRgba(tool.brushColor, 0));
   ctx.fillStyle = grad;
   ctx.globalCompositeOperation = erase ? "destination-out" : "source-over";
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
-}
-
-function hexWithAlpha(hex: string, alpha: number): string {
-  const m = /^#?([0-9a-f]{6})$/i.exec(hex);
-  if (!m) return hex;
-  const n = parseInt(m[1], 16);
-  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
 }
 
 function floodFill(

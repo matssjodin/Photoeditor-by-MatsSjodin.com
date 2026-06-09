@@ -12,6 +12,10 @@ import { renderErrorPage } from "./lib/error-page";
  *  - Plausible (https://plausible.io) is allowed for the optional, cookieless
  *    analytics script — the script only loads when VITE_PLAUSIBLE_DOMAIN is set,
  *    but allowing the origin here keeps that purely an env toggle.
+ *  - Background removal (src/editor/bgremove.ts) lazy-loads MediaPipe's wasm
+ *    runtime from cdn.jsdelivr.net (script + fetch) and the segmentation model
+ *    from storage.googleapis.com (fetch); compiling the wasm needs
+ *    'wasm-unsafe-eval'. Keep these in sync with the URLs in bgremove.ts.
  *  - frame-ancestors 'none' blocks clickjacking (also covered by X-Frame-Options).
  */
 const CSP = [
@@ -21,10 +25,10 @@ const CSP = [
   "frame-ancestors 'none'",
   "form-action 'self'",
   "img-src 'self' data: blob:",
-  "script-src 'self' 'unsafe-inline' https://plausible.io",
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://plausible.io https://cdn.jsdelivr.net",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com data:",
-  "connect-src 'self' https://plausible.io",
+  "connect-src 'self' https://plausible.io https://cdn.jsdelivr.net https://storage.googleapis.com",
   "worker-src 'self' blob:",
 ].join("; ");
 

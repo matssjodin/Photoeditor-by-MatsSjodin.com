@@ -13,6 +13,7 @@ import {
   Type as TypeIcon,
   Bold,
   Italic,
+  Sparkles,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { actions, useEditor } from "./store";
@@ -613,6 +614,7 @@ function LayerProperties({ layer }: { layer: Layer }) {
           ))}
         </select>
       </div>
+      {layer.type === "raster" && <RemoveBackground layer={layer} />}
       {layer.type === "raster" && <MaskControls layer={layer} />}
       {layer.type === "text" && (
         <div className="mt-2 space-y-2">
@@ -668,6 +670,52 @@ function LayerProperties({ layer }: { layer: Layer }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ---------- Background removal ----------
+
+function RemoveBackground({ layer }: { layer: RasterLayer }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const run = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const { computeSubjectMask } = await import("./bgremove");
+      const mask = await computeSubjectMask(layer.canvas);
+      actions.recordRaster("Remove background", layer.id, () => {
+        const ctx = layer.canvas.getContext("2d")!;
+        ctx.save();
+        ctx.globalCompositeOperation = "destination-in";
+        ctx.drawImage(mask, 0, 0);
+        ctx.restore();
+      });
+    } catch {
+      setError("Couldn't remove the background — check your connection and try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-2 border-t border-border pt-2">
+      <button
+        onClick={() => void run()}
+        disabled={busy || layer.locked}
+        className="flex w-full items-center justify-center gap-1.5 rounded bg-primary px-2 py-1 text-xs text-primary-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        <Sparkles className="h-3.5 w-3.5" />
+        {busy ? "Removing background…" : "Remove background"}
+      </button>
+      <p className="mt-1 text-[11px] text-muted-foreground">
+        {busy
+          ? "First use downloads the AI model (~16 MB). The image stays in your browser."
+          : "Best for photos of people. Runs locally — nothing is uploaded. Undo with ⌘Z."}
+      </p>
+      {error && <p className="mt-1 text-[11px] text-destructive">{error}</p>}
     </div>
   );
 }

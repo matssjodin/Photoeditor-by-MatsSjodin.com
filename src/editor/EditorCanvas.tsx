@@ -36,6 +36,7 @@ import {
   type GradientStyle,
   type ShapeStyle,
 } from "./draw";
+import { copyToClipboard } from "./clipboard";
 import { FONTS } from "./fonts";
 import { Bold, Italic, Check } from "lucide-react";
 
@@ -281,6 +282,11 @@ export function EditorCanvas() {
       if (meta && e.key.toLowerCase() === "d") {
         e.preventDefault();
         actions.setSelection(null);
+      }
+      // Copy/Cut the flattened selection (or whole doc) as a PNG.
+      if (meta && (e.key.toLowerCase() === "c" || e.key.toLowerCase() === "x") && !typing) {
+        e.preventDefault();
+        void copyToClipboard(e.key.toLowerCase() === "x").catch(() => {});
       }
       if (e.key === "Escape") actions.setSelection(null);
       if (e.key === "0" && meta) {

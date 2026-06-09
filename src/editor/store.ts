@@ -246,6 +246,24 @@ export const actions = {
     });
   },
 
+  /**
+   * Add an image (paste, drop, import) as a new layer. The layer canvas
+   * matches the image size and is centred on the document so oversized
+   * pastes keep all their pixels and can be moved/transformed.
+   */
+  addImageLayer(source: CanvasImageSource, w: number, h: number, name = "Pasted") {
+    const layer = newRasterLayer(name);
+    layer.canvas.width = Math.max(1, Math.round(w));
+    layer.canvas.height = Math.max(1, Math.round(h));
+    layer.canvas.getContext("2d")!.drawImage(source, 0, 0);
+    layer.x = Math.round((state.doc.width - w) / 2);
+    layer.y = Math.round((state.doc.height - h) / 2);
+    this._structural("Paste", () => {
+      state.doc.layers.push(layer);
+      state.doc.activeLayerId = layer.id;
+    });
+  },
+
   deleteLayer(id: string) {
     this._structural("Delete layer", () => {
       state.doc.layers = state.doc.layers.filter((l) => l.id !== id);

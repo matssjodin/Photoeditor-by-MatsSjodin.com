@@ -61,6 +61,25 @@ describe("layer operations", () => {
     expect(pixel(copy, 5, 5)[0]).toBe(255);
   });
 
+  test("addImageLayer centres the image and is undoable", () => {
+    const img = document.createElement("canvas") as HTMLCanvasElement;
+    img.width = 10;
+    img.height = 10;
+    const ictx = img.getContext("2d")!;
+    ictx.fillStyle = "#ff0000";
+    ictx.fillRect(0, 0, 10, 10);
+    actions.addImageLayer(img, 10, 10, "Pasted");
+    const s = getState();
+    expect(s.doc.layers).toHaveLength(2);
+    const layer = s.doc.layers[1] as RasterLayer;
+    expect(layer.name).toBe("Pasted");
+    expect(layer.canvas.width).toBe(10);
+    expect(layer.x).toBe(5); // (20 - 10) / 2
+    expect(pixel(layer, 5, 5)[0]).toBe(255);
+    actions.undo();
+    expect(getState().doc.layers).toHaveLength(1);
+  });
+
   test("reorderLayer moves a layer within the stack", () => {
     actions.addLayer("raster"); // layer index 1 (top), now active
     const topId = getState().doc.activeLayerId!;

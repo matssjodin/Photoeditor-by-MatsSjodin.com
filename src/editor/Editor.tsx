@@ -7,6 +7,7 @@ import { Toolbar } from "./Toolbar";
 import { RightPanels } from "./RightPanels";
 import { EditorCanvas } from "./EditorCanvas";
 import { actions, useEditor } from "./store";
+import { imageFromClipboardEvent, pasteBlobAsLayer } from "./clipboard";
 import { ImagePlus, FilePlus2, Monitor } from "lucide-react";
 
 export function Editor() {
@@ -30,6 +31,24 @@ export function Editor() {
       window.removeEventListener("dragover", prevent);
       window.removeEventListener("drop", prevent);
     };
+  }, []);
+
+  // Ctrl/⌘+V pastes a clipboard image as a new layer (unless typing in a field).
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)
+      )
+        return;
+      const blob = imageFromClipboardEvent(e);
+      if (!blob) return;
+      e.preventDefault();
+      void pasteBlobAsLayer(blob);
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
   }, []);
 
   return (

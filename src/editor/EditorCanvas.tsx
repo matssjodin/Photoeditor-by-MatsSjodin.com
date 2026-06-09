@@ -27,6 +27,7 @@ import {
   maskFromWand,
   selectionFromMask,
 } from "./selection";
+import { clippedLayerDraw, constrainShape, drawShape, type ShapeStyle } from "./draw";
 import { FONTS } from "./fonts";
 import { Bold, Italic, Check } from "lucide-react";
 
@@ -48,6 +49,9 @@ const TOOL_KEYS: Record<string, ToolId> = {
   b: "brush",
   e: "eraser",
   g: "fill",
+  u: "shape",
+  d: "gradient",
+  s: "clone",
   i: "eyedropper",
   t: "text",
   c: "crop",
@@ -66,6 +70,13 @@ export function EditorCanvas() {
   const interaction = useRef<InteractionState | null>(null);
   // Live preview of the lasso polygon while the user is drawing it.
   const [lassoPreview, setLassoPreview] = useState<{ x: number; y: number }[] | null>(null);
+  // Live preview of a shape being dragged out.
+  const [shapePreview, setShapePreview] = useState<{
+    x0: number;
+    y0: number;
+    x1: number;
+    y1: number;
+  } | null>(null);
   // In-canvas text editor (replaces the old window.prompt flow).
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const textEditorRef = useRef<HTMLTextAreaElement>(null);
@@ -149,6 +160,17 @@ export function EditorCanvas() {
       ctx.stroke();
     }
 
+    if (shapePreview) {
+      drawShape(
+        ctx,
+        shapeStyleOf(tool),
+        shapePreview.x0,
+        shapePreview.y0,
+        shapePreview.x1,
+        shapePreview.y1,
+      );
+    }
+
     // Free-transform handles around the active layer while the Move tool is up.
     if (tool.tool === "move" && !editingTextId) {
       const active = doc.layers.find((l) => l.id === doc.activeLayerId);
@@ -163,7 +185,8 @@ export function EditorCanvas() {
     view.zoom,
     s.version,
     lassoPreview,
-    tool.tool,
+    shapePreview,
+    tool,
     editingTextId,
     doc.layers,
     doc.activeLayerId,
@@ -394,6 +417,18 @@ export function EditorCanvas() {
           tool.tolerance,
         );
       });
+    } else if (tool.tool === "shape") {
+      const raster = actions.activeRaster();
+      if (!raster) return;
+      interaction.current = {
+        kind: "shape",
+        layerId: raster.id,
+        x0: p.x,
+        y0: p.y,
+        x1: p.x,
+        y1: p.y,
+      };
+      setShapePreview({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
     } else if (tool.tool === "select-rect" || tool.tool === "crop") {
       // Crop reuses the rectangular-selection drag: the user marks the area to
       // keep, then applies via the panel button or Enter.
@@ -473,6 +508,13 @@ export function EditorCanvas() {
           ? rotateDrag(it.start, it.size, p, e.shiftKey)
           : scaleDrag(it.start, it.size, it.handle, p, corner ? !e.shiftKey : false);
       actions.updateLayer(it.layerId, next);
+    } else if (it.kind === "shape") {
+      const end = e.shiftKey
+        ? constrainShape(tool.shapeKind, it.x0, it.y0, p.x, p.y)
+        : { x1: p.x, y1: p.y };
+      it.x1 = end.x1;
+      it.y1 = end.y1;
+      setShapePreview({ x0: it.x0, y0: it.y0, x1: it.x1, y1: it.y1 });
     } else if (it.kind === "lasso") {
       // Append point if it has moved enough — keeps polygon light.
       const last = it.points[it.points.length - 1];
@@ -515,6 +557,23 @@ export function EditorCanvas() {
         commitSelection(mask);
       }
       setLassoPreview(null);
+    }
+    if (it?.kind === "shape") {
+      setShapePreview(null);
+      const raster = actions.activeRaster();
+      const style = shapeStyleOf(tool);
+      if (
+        raster &&
+        raster.id === it.layerId &&
+        Math.hypot(it.x1 - it.x0, it.y1 - it.y0) >= 2 &&
+        (style.fill || style.stroke)
+      ) {
+        actions.recordRaster("Shape", raster.id, () => {
+          clippedLayerDraw(raster, doc.selection, (ctx) =>
+            drawShape(ctx, style, it.x0, it.y0, it.x1, it.y1),
+          );
+        });
+      }
     }
     interaction.current = null;
     setPanning(false);
@@ -729,7 +788,26 @@ type InteractionState =
       size: { w: number; h: number };
       start: TransformProps;
     }
+  | { kind: "shape"; layerId: string; x0: number; y0: number; x1: number; y1: number }
   | { kind: "lasso"; points: { x: number; y: number }[] };
+
+/** Resolve the shape tool's options into concrete fill/stroke colours. */
+function shapeStyleOf(tool: {
+  shapeKind: ShapeStyle["kind"];
+  shapeFill: boolean;
+  shapeStroke: boolean;
+  shapeStrokeWidth: number;
+  brushColor: string;
+  secondaryColor: string;
+}): ShapeStyle {
+  const linear = tool.shapeKind === "line" || tool.shapeKind === "arrow";
+  return {
+    kind: tool.shapeKind,
+    fill: !linear && tool.shapeFill ? tool.brushColor : null,
+    stroke: linear ? tool.brushColor : tool.shapeStroke ? tool.secondaryColor : null,
+    strokeWidth: tool.shapeStrokeWidth,
+  };
+}
 
 function snapshotProps(l: Layer): TransformProps {
   return {

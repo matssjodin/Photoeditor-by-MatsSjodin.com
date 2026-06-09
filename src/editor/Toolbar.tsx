@@ -16,6 +16,9 @@ import {
   Redo2,
   Lasso,
   Wand2,
+  Shapes,
+  Blend,
+  Stamp,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { actions, useEditor } from "./store";
@@ -59,6 +62,9 @@ const tools: { id: ToolId; label: string; icon: React.ComponentType<{ className?
   { id: "brush", label: "Brush (B)", icon: Brush },
   { id: "eraser", label: "Eraser (E)", icon: Eraser },
   { id: "fill", label: "Fill (G)", icon: PaintBucket },
+  { id: "shape", label: "Shape (U)", icon: Shapes },
+  { id: "gradient", label: "Gradient (D)", icon: Blend },
+  { id: "clone", label: "Clone stamp (S)", icon: Stamp },
   { id: "eyedropper", label: "Eyedropper (I)", icon: Pipette },
   { id: "text", label: "Text (T)", icon: Type },
   { id: "crop", label: "Crop (C)", icon: Crop },

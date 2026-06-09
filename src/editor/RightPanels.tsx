@@ -146,6 +146,7 @@ function ToolOptions() {
           </label>
         </>
       )}
+      {t.tool === "shape" && <ShapeOptions />}
       {t.tool === "text" && (
         <div className="space-y-2">
           <FontPicker value={t.fontFamily} onChange={(v) => actions.setTool({ fontFamily: v })} />
@@ -177,11 +178,93 @@ function labelForTool(t: string) {
         brush: "Brush",
         eraser: "Eraser",
         fill: "Fill",
+        shape: "Shape",
+        gradient: "Gradient",
+        clone: "Clone stamp",
         text: "Text",
         crop: "Crop",
         eyedropper: "Eyedropper",
       } as Record<string, string>
     )[t] ?? t
+  );
+}
+
+function ShapeOptions() {
+  const s = useEditor();
+  const t = s.tool;
+  const kinds: { id: typeof t.shapeKind; label: string }[] = [
+    { id: "rectangle", label: "Rect" },
+    { id: "ellipse", label: "Ellipse" },
+    { id: "line", label: "Line" },
+    { id: "arrow", label: "Arrow" },
+  ];
+  const linear = t.shapeKind === "line" || t.shapeKind === "arrow";
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-1">
+        {kinds.map((k) => (
+          <button
+            key={k.id}
+            onClick={() => actions.setTool({ shapeKind: k.id })}
+            className={
+              "flex-1 rounded border px-1 py-1 text-[11px] " +
+              (t.shapeKind === k.id
+                ? "border-primary bg-primary/15 text-foreground"
+                : "border-border bg-secondary text-muted-foreground hover:text-foreground")
+            }
+          >
+            {k.label}
+          </button>
+        ))}
+      </div>
+      {linear ? (
+        <Slider
+          label="Width"
+          value={t.shapeStrokeWidth}
+          min={1}
+          max={60}
+          onChange={(v) => actions.setTool({ shapeStrokeWidth: v })}
+        />
+      ) : (
+        <>
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={t.shapeFill}
+              onChange={(e) => actions.setTool({ shapeFill: e.target.checked })}
+            />
+            Fill with foreground colour
+          </label>
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={t.shapeStroke}
+              onChange={(e) => actions.setTool({ shapeStroke: e.target.checked })}
+            />
+            Stroke
+            <input
+              type="color"
+              value={t.secondaryColor}
+              onChange={(e) => actions.setTool({ secondaryColor: e.target.value })}
+              className="h-6 w-8 cursor-pointer rounded border border-border bg-transparent"
+              aria-label="Stroke colour"
+            />
+          </label>
+          {t.shapeStroke && (
+            <Slider
+              label="Stroke width"
+              value={t.shapeStrokeWidth}
+              min={1}
+              max={60}
+              onChange={(v) => actions.setTool({ shapeStrokeWidth: v })}
+            />
+          )}
+        </>
+      )}
+      <p className="text-xs text-muted-foreground">
+        Drag on the canvas to draw. Hold Shift for squares, circles and 45° lines.
+      </p>
+    </div>
   );
 }
 

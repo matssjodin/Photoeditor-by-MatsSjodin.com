@@ -28,6 +28,11 @@ interface ToolState {
   wandContiguous: boolean; // limit wand to contiguous pixels
   selectionMode: "replace" | "add" | "subtract";
   feather: number; // px — gaussian feather applied to new selections
+  // Shape tool
+  shapeKind: "rectangle" | "ellipse" | "line" | "arrow";
+  shapeFill: boolean; // fill with the primary colour
+  shapeStroke: boolean; // outline with the secondary colour
+  shapeStrokeWidth: number;
 }
 
 interface HistoryEntry {
@@ -86,6 +91,10 @@ const state: State = {
     wandContiguous: true,
     selectionMode: "replace",
     feather: 0,
+    shapeKind: "rectangle",
+    shapeFill: true,
+    shapeStroke: false,
+    shapeStrokeWidth: 4,
   },
   history: [],
   historyIndex: -1,

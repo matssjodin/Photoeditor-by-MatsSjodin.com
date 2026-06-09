@@ -166,6 +166,70 @@ describe("history: props undo/redo", () => {
   });
 });
 
+describe("layer masks", () => {
+  function maskAlpha(l: RasterLayer, x: number, y: number) {
+    return l.mask!.getContext("2d")!.getImageData(x, y, 1, 1).data[3];
+  }
+
+  test("addLayerMask without selection reveals everything", () => {
+    const l = activeRaster();
+    actions.addLayerMask(l.id);
+    expect(l.mask).toBeDefined();
+    expect(maskAlpha(l, 5, 5)).toBe(255);
+  });
+
+  test("addLayerMask from a rect selection only reveals the selection", () => {
+    const l = activeRaster();
+    actions.setSelection({ x: 0, y: 0, w: 5, h: 5 });
+    actions.addLayerMask(l.id);
+    expect(maskAlpha(l, 2, 2)).toBe(255);
+    expect(maskAlpha(l, 10, 10)).toBe(0);
+    expect(getState().doc.selection).toBeNull();
+  });
+
+  test("invertLayerMask flips visibility and is undoable", () => {
+    const l = activeRaster();
+    actions.setSelection({ x: 0, y: 0, w: 5, h: 5 });
+    actions.addLayerMask(l.id);
+    actions.invertLayerMask(l.id);
+    expect(maskAlpha(l, 2, 2)).toBe(0);
+    expect(maskAlpha(l, 10, 10)).toBe(255);
+    actions.undo();
+    expect(maskAlpha(l, 2, 2)).toBe(255);
+  });
+
+  test("applyLayerMask bakes alpha and removes the mask", () => {
+    const l = activeRaster(); // black, fully opaque
+    actions.setSelection({ x: 0, y: 0, w: 5, h: 5 });
+    actions.addLayerMask(l.id);
+    actions.applyLayerMask(l.id);
+    const layer = activeRaster();
+    expect(layer.mask).toBeUndefined();
+    expect(pixel(layer, 2, 2)[3]).toBe(255); // kept
+    expect(pixel(layer, 10, 10)[3]).toBe(0); // masked away
+    actions.undo(); // structural undo restores the mask + pixels
+    expect(activeRaster().mask).toBeDefined();
+    expect(pixel(activeRaster(), 10, 10)[3]).toBe(255);
+  });
+
+  test("deleteLayerMask removes it without touching pixels", () => {
+    const l = activeRaster();
+    actions.addLayerMask(l.id);
+    actions.deleteLayerMask(l.id);
+    expect(activeRaster().mask).toBeUndefined();
+    expect(pixel(activeRaster(), 5, 5)[3]).toBe(255);
+  });
+
+  test("duplicateLayer deep-copies the mask", () => {
+    const l = activeRaster();
+    actions.addLayerMask(l.id);
+    actions.duplicateLayer(l.id);
+    const copy = getState().doc.layers[1] as RasterLayer;
+    expect(copy.mask).toBeDefined();
+    expect(copy.mask).not.toBe(l.mask);
+  });
+});
+
 describe("history bounds", () => {
   test("undo with empty history is a safe no-op", () => {
     expect(() => actions.undo()).not.toThrow();

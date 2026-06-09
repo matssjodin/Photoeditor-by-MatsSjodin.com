@@ -16,7 +16,13 @@ import {
 } from "lucide-react";
 import { useMemo } from "react";
 import { actions, useEditor } from "./store";
-import { DEFAULT_ADJUSTMENTS, type Adjustments, type BlendMode, type Layer } from "./types";
+import {
+  DEFAULT_ADJUSTMENTS,
+  type Adjustments,
+  type BlendMode,
+  type Layer,
+  type RasterLayer,
+} from "./types";
 import { FONTS } from "./fonts";
 
 const BLEND_MODES: BlendMode[] = [
@@ -590,6 +596,7 @@ function LayerProperties({ layer }: { layer: Layer }) {
           ))}
         </select>
       </div>
+      {layer.type === "raster" && <MaskControls layer={layer} />}
       {layer.type === "text" && (
         <div className="mt-2 space-y-2">
           <textarea
@@ -645,6 +652,105 @@ function LayerProperties({ layer }: { layer: Layer }) {
         </div>
       )}
     </div>
+  );
+}
+
+// ---------- Layer masks ----------
+
+function MaskControls({ layer }: { layer: RasterLayer }) {
+  const s = useEditor();
+  const hasSelection = !!s.doc.selection;
+
+  if (!layer.mask) {
+    return (
+      <div className="mt-2 border-t border-border pt-2">
+        <button
+          onClick={() => actions.addLayerMask(layer.id)}
+          className="w-full rounded border border-border bg-secondary px-2 py-1 text-xs hover:bg-accent"
+        >
+          {hasSelection ? "Add mask from selection" : "Add layer mask"}
+        </button>
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          Masks hide parts of a layer without erasing pixels.
+        </p>
+      </div>
+    );
+  }
+
+  const editing = s.tool.maskEdit;
+  return (
+    <div className="mt-2 space-y-2 border-t border-border pt-2">
+      <div className="flex items-center gap-2">
+        <MaskThumb layer={layer} />
+        <button
+          onClick={() => actions.setTool({ maskEdit: !editing })}
+          className={
+            "flex-1 rounded border px-2 py-1 text-xs " +
+            (editing
+              ? "border-primary bg-primary/15 text-foreground"
+              : "border-border bg-secondary text-muted-foreground hover:text-foreground")
+          }
+        >
+          {editing ? "Editing mask" : "Edit mask"}
+        </button>
+      </div>
+      {editing && (
+        <p className="text-[11px] text-muted-foreground">
+          Brush reveals, eraser hides. Click “Editing mask” to go back to pixels.
+        </p>
+      )}
+      <div className="flex gap-1">
+        <button
+          onClick={() => actions.invertLayerMask(layer.id)}
+          className="flex-1 rounded border border-border bg-secondary px-2 py-1 text-xs hover:bg-accent"
+        >
+          Invert
+        </button>
+        <button
+          onClick={() => actions.applyLayerMask(layer.id)}
+          className="flex-1 rounded border border-border bg-secondary px-2 py-1 text-xs hover:bg-accent"
+        >
+          Apply
+        </button>
+        <button
+          onClick={() => actions.deleteLayerMask(layer.id)}
+          className="flex-1 rounded border border-border bg-secondary px-2 py-1 text-xs hover:bg-accent"
+        >
+          Delete
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Black/white preview of a layer mask (white = visible). */
+function MaskThumb({ layer }: { layer: RasterLayer }) {
+  const s = useEditor();
+  const mask = layer.mask ?? null;
+  const url = useMemo(() => {
+    if (!mask) return "";
+    try {
+      const c = document.createElement("canvas");
+      c.width = 32;
+      c.height = 32;
+      const ctx = c.getContext("2d")!;
+      ctx.fillStyle = "#000000";
+      ctx.fillRect(0, 0, 32, 32);
+      ctx.drawImage(mask, 0, 0, 32, 32);
+      return c.toDataURL();
+    } catch {
+      return "";
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mask, s.version]);
+  if (!mask) return null;
+  return (
+    <img
+      src={url}
+      className="h-8 w-8 rounded border border-border object-cover"
+      alt="Layer mask"
+      title="Layer mask (white = visible)"
+    />
   );
 }
 

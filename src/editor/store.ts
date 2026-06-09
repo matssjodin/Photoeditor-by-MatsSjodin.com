@@ -38,6 +38,8 @@ interface ToolState {
   gradientToTransparent: boolean; // fade to transparent instead of the secondary colour
   // Clone stamp: doc-space sample point set with Alt+click
   cloneSource: { x: number; y: number } | null;
+  // When true, brush/eraser paint on the active layer's mask instead of pixels
+  maskEdit: boolean;
 }
 
 interface HistoryEntry {
@@ -103,6 +105,7 @@ const state: State = {
     gradientKind: "linear",
     gradientToTransparent: false,
     cloneSource: null,
+    maskEdit: false,
   },
   history: [],
   historyIndex: -1,
@@ -303,6 +306,7 @@ export const actions = {
   },
 
   setActiveLayer(id: string) {
+    if (state.doc.activeLayerId !== id) state.tool.maskEdit = false;
     state.doc.activeLayerId = id;
     emit();
   },
@@ -418,6 +422,72 @@ export const actions = {
       state.doc.width = w;
       state.doc.height = h;
       state.doc.selection = null;
+    });
+  },
+
+  // ---------- Layer masks ----------
+  /**
+   * Add a mask to a raster layer. With a selection, the selected pixels stay
+   * visible (selection translated into layer space); otherwise reveal-all.
+   */
+  addLayerMask(id: string) {
+    const l = state.doc.layers.find((x) => x.id === id);
+    if (!l || l.type !== "raster" || l.mask) return;
+    const sel = state.doc.selection;
+    this._structural("Add mask", () => {
+      const mask = makeCanvas(l.canvas.width, l.canvas.height);
+      const ctx = mask.getContext("2d")!;
+      ctx.fillStyle = "#ffffff";
+      if (!sel) {
+        ctx.fillRect(0, 0, mask.width, mask.height);
+      } else if (sel.mask) {
+        ctx.drawImage(sel.mask, -l.x, -l.y);
+      } else {
+        ctx.fillRect(sel.x - l.x, sel.y - l.y, sel.w, sel.h);
+      }
+      l.mask = mask;
+      state.doc.selection = null;
+    });
+  },
+
+  deleteLayerMask(id: string) {
+    const l = state.doc.layers.find((x) => x.id === id);
+    if (!l || l.type !== "raster" || !l.mask) return;
+    this._structural("Delete mask", () => {
+      l.mask = undefined;
+    });
+    if (state.tool.maskEdit) this.setTool({ maskEdit: false });
+  },
+
+  /** Bake the mask into the layer's alpha channel and remove it. */
+  applyLayerMask(id: string) {
+    const l = state.doc.layers.find((x) => x.id === id);
+    if (!l || l.type !== "raster" || !l.mask) return;
+    this._structural("Apply mask", () => {
+      const ctx = l.canvas.getContext("2d")!;
+      ctx.save();
+      ctx.globalCompositeOperation = "destination-in";
+      ctx.drawImage(l.mask!, 0, 0);
+      ctx.restore();
+      l.mask = undefined;
+    });
+    if (state.tool.maskEdit) this.setTool({ maskEdit: false });
+  },
+
+  invertLayerMask(id: string) {
+    const l = state.doc.layers.find((x) => x.id === id);
+    if (!l || l.type !== "raster" || !l.mask) return;
+    this.recordRaster("Invert mask", id, () => {
+      const mask = l.mask!;
+      const out = makeCanvas(mask.width, mask.height);
+      const octx = out.getContext("2d")!;
+      octx.fillStyle = "#ffffff";
+      octx.fillRect(0, 0, out.width, out.height);
+      octx.globalCompositeOperation = "destination-out";
+      octx.drawImage(mask, 0, 0);
+      const mctx = mask.getContext("2d")!;
+      mctx.clearRect(0, 0, mask.width, mask.height);
+      mctx.drawImage(out, 0, 0);
     });
   },
 

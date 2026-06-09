@@ -460,14 +460,24 @@ export function EditorCanvas() {
     if (tool.tool === "brush" || tool.tool === "eraser") {
       const raster = actions.activeRaster();
       if (!raster) return;
-      actions.beginStroke(raster.id);
-      paintStamp(raster, p.x, p.y, tool.tool === "eraser", tool, doc.selection);
+      const onMask = tool.maskEdit && !!raster.mask;
+      actions.beginStroke(raster.id, onMask ? "mask" : "pixels");
+      paintStamp(
+        raster,
+        p.x,
+        p.y,
+        tool.tool === "eraser",
+        tool,
+        doc.selection,
+        onMask ? raster.mask : undefined,
+      );
       interaction.current = {
         kind: "paint",
         lastX: p.x,
         lastY: p.y,
         layerId: raster.id,
         erase: tool.tool === "eraser",
+        onMask,
       };
     } else if (tool.tool === "fill") {
       const raster = actions.activeRaster();
@@ -579,6 +589,8 @@ export function EditorCanvas() {
     if (it.kind === "paint") {
       const raster = actions.activeLayer() as RasterLayer;
       if (!raster) return;
+      const maskTarget = it.onMask ? raster.mask : undefined;
+      if (it.onMask && !maskTarget) return;
       const dx = p.x - it.lastX;
       const dy = p.y - it.lastY;
       const dist = Math.hypot(dx, dy);
@@ -586,7 +598,15 @@ export function EditorCanvas() {
       const n = Math.max(1, Math.floor(dist / step));
       for (let i = 1; i <= n; i++) {
         const t = i / n;
-        paintStamp(raster, it.lastX + dx * t, it.lastY + dy * t, it.erase, tool, doc.selection);
+        paintStamp(
+          raster,
+          it.lastX + dx * t,
+          it.lastY + dy * t,
+          it.erase,
+          tool,
+          doc.selection,
+          maskTarget,
+        );
       }
       it.lastX = p.x;
       it.lastY = p.y;
@@ -923,7 +943,14 @@ export function EditorCanvas() {
 
 type InteractionState =
   | { kind: "pan"; startX: number; startY: number; tx: number; ty: number }
-  | { kind: "paint"; lastX: number; lastY: number; layerId: string; erase: boolean }
+  | {
+      kind: "paint";
+      lastX: number;
+      lastY: number;
+      layerId: string;
+      erase: boolean;
+      onMask: boolean;
+    }
   | { kind: "select"; startX: number; startY: number }
   | { kind: "move"; layerId: string; startX: number; startY: number; origX: number; origY: number }
   | {
@@ -1078,6 +1105,9 @@ function state_activeRaster(): RasterLayer | null {
  * Stamp a soft brush dab on `layer`, clipped to the current selection
  * (rectangular OR mask-based). Uses a temp canvas + destination-in for mask
  * clipping so freehand/wand selections work.
+ *
+ * When `maskCanvas` is given the dab targets the layer's mask instead:
+ * brushing reveals (paints opaque white), erasing hides (clears alpha).
  */
 function paintStamp(
   layer: RasterLayer,
@@ -1086,19 +1116,22 @@ function paintStamp(
   erase: boolean,
   tool: { brushSize: number; brushHardness: number; brushColor: string },
   selection: Selection | null,
+  maskCanvas?: HTMLCanvasElement,
 ) {
-  const ctx = layer.canvas.getContext("2d")!;
+  const target = maskCanvas ?? layer.canvas;
+  const ctx = target.getContext("2d")!;
   const r = tool.brushSize / 2;
   const hardness = tool.brushHardness;
-  const color = erase ? "rgba(0,0,0,1)" : tool.brushColor;
+  const paintColor = maskCanvas ? "#ffffff" : tool.brushColor;
+  const color = erase ? "rgba(0,0,0,1)" : paintColor;
 
   if (selection?.mask) {
     // Render the stamp to a temp canvas, mask it, then composite onto layer.
-    const tmp = makeCanvas(layer.canvas.width, layer.canvas.height);
+    const tmp = makeCanvas(target.width, target.height);
     const tctx = tmp.getContext("2d")!;
     const grad = tctx.createRadialGradient(x, y, r * hardness, x, y, r);
     grad.addColorStop(0, color);
-    grad.addColorStop(1, erase ? "rgba(0,0,0,0)" : hexToRgba(tool.brushColor, 0));
+    grad.addColorStop(1, erase ? "rgba(0,0,0,0)" : hexToRgba(paintColor, 0));
     tctx.fillStyle = grad;
     tctx.beginPath();
     tctx.arc(x, y, r, 0, Math.PI * 2);
@@ -1121,7 +1154,7 @@ function paintStamp(
   }
   const grad = ctx.createRadialGradient(x, y, r * hardness, x, y, r);
   grad.addColorStop(0, color);
-  grad.addColorStop(1, erase ? "rgba(0,0,0,0)" : hexToRgba(tool.brushColor, 0));
+  grad.addColorStop(1, erase ? "rgba(0,0,0,0)" : hexToRgba(paintColor, 0));
   ctx.fillStyle = grad;
   ctx.globalCompositeOperation = erase ? "destination-out" : "source-over";
   ctx.beginPath();

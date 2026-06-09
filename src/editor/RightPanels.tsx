@@ -14,8 +14,18 @@ import {
   Bold,
   Italic,
 } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { actions, useEditor } from "./store";
+import {
+  addNoise,
+  applyLevels,
+  autoLevels,
+  DEFAULT_LEVELS,
+  pixelate,
+  sharpen,
+  vignette,
+  type LevelsParams,
+} from "./filters";
 import {
   DEFAULT_ADJUSTMENTS,
   type Adjustments,
@@ -49,6 +59,13 @@ export function RightPanels() {
       <ToolOptions />
       <Section title="Adjustments" defaultOpen>
         {active ? <AdjustmentsPanel layer={active} /> : <Empty>Select a layer</Empty>}
+      </Section>
+      <Section title="Filters">
+        {active && active.type === "raster" ? (
+          <FiltersPanel layer={active} />
+        ) : (
+          <Empty>Select a raster layer</Empty>
+        )}
       </Section>
       <Section title="Layers" defaultOpen grow>
         <LayersPanel />
@@ -831,6 +848,141 @@ function AdjustmentsPanel({ layer }: { layer: Layer }) {
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+// ---------- Filters ----------
+
+function FiltersPanel({ layer }: { layer: RasterLayer }) {
+  const [levels, setLevels] = useState<LevelsParams>({ ...DEFAULT_LEVELS });
+  const [sharpenAmt, setSharpenAmt] = useState(40);
+  const [vignetteAmt, setVignetteAmt] = useState(50);
+  const [noiseAmt, setNoiseAmt] = useState(15);
+  const [pixelSize, setPixelSize] = useState(8);
+
+  const apply = (label: string, fn: (img: ImageData) => void) => {
+    actions.recordRaster(label, layer.id, () => {
+      const ctx = layer.canvas.getContext("2d")!;
+      const img = ctx.getImageData(0, 0, layer.canvas.width, layer.canvas.height);
+      fn(img);
+      ctx.putImageData(img, 0, 0);
+    });
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-md border border-border bg-card/40 p-2">
+        <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Levels
+        </div>
+        <Slider
+          label="Black point"
+          value={levels.black}
+          min={0}
+          max={254}
+          onChange={(v) => setLevels((p) => ({ ...p, black: v }))}
+        />
+        <Slider
+          label="White point"
+          value={levels.white}
+          min={1}
+          max={255}
+          onChange={(v) => setLevels((p) => ({ ...p, white: v }))}
+        />
+        <Slider
+          label="Gamma"
+          value={levels.gamma}
+          min={0.2}
+          max={3}
+          step={0.05}
+          onChange={(v) => setLevels((p) => ({ ...p, gamma: v }))}
+        />
+        <div className="mt-1 flex gap-2">
+          <button
+            onClick={() => {
+              const ctx = layer.canvas.getContext("2d")!;
+              const img = ctx.getImageData(0, 0, layer.canvas.width, layer.canvas.height);
+              setLevels(autoLevels(img));
+            }}
+            className="flex-1 rounded border border-border bg-secondary px-2 py-1 text-xs hover:bg-accent"
+          >
+            Auto
+          </button>
+          <button
+            onClick={() => apply("Levels", (img) => applyLevels(img, levels))}
+            className="flex-1 rounded bg-primary px-2 py-1 text-xs text-primary-foreground hover:opacity-90"
+          >
+            Apply
+          </button>
+        </div>
+      </div>
+
+      <FilterRow
+        label="Sharpen"
+        value={sharpenAmt}
+        min={1}
+        max={100}
+        onChange={setSharpenAmt}
+        onApply={() => apply("Sharpen", (img) => sharpen(img, sharpenAmt))}
+      />
+      <FilterRow
+        label="Vignette"
+        value={vignetteAmt}
+        min={1}
+        max={100}
+        onChange={setVignetteAmt}
+        onApply={() => apply("Vignette", (img) => vignette(img, vignetteAmt))}
+      />
+      <FilterRow
+        label="Noise"
+        value={noiseAmt}
+        min={1}
+        max={100}
+        onChange={setNoiseAmt}
+        onApply={() => apply("Noise", (img) => addNoise(img, noiseAmt))}
+      />
+      <FilterRow
+        label="Pixelate"
+        value={pixelSize}
+        min={2}
+        max={64}
+        onChange={setPixelSize}
+        onApply={() => apply("Pixelate", (img) => pixelate(img, pixelSize))}
+      />
+      <p className="text-[11px] text-muted-foreground">
+        Filters change the layer's pixels (undo with ⌘Z).
+      </p>
+    </div>
+  );
+}
+
+function FilterRow({
+  label,
+  value,
+  min,
+  max,
+  onChange,
+  onApply,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  onChange: (v: number) => void;
+  onApply: () => void;
+}) {
+  return (
+    <div className="flex items-end gap-2">
+      <div className="flex-1">
+        <Slider label={label} value={value} min={min} max={max} onChange={onChange} />
+      </div>
+      <button
+        onClick={onApply}
+        className="mb-1 rounded border border-border bg-secondary px-2 py-1 text-xs hover:bg-accent"
+      >
+        Apply
+      </button>
     </div>
   );
 }

@@ -213,6 +213,22 @@ export function EditorCanvas() {
       );
     }
 
+    // Clone-stamp source marker.
+    if (tool.tool === "clone" && tool.cloneSource) {
+      const c = tool.cloneSource;
+      const r = 7 / view.zoom;
+      ctx.strokeStyle = "#7cc4ff";
+      ctx.lineWidth = 1.5 / view.zoom;
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, r, 0, Math.PI * 2);
+      ctx.moveTo(c.x - r * 1.6, c.y);
+      ctx.lineTo(c.x + r * 1.6, c.y);
+      ctx.moveTo(c.x, c.y - r * 1.6);
+      ctx.lineTo(c.x, c.y + r * 1.6);
+      ctx.stroke();
+    }
+
     // Free-transform handles around the active layer while the Move tool is up.
     if (tool.tool === "move" && !editingTextId) {
       const active = doc.layers.find((l) => l.id === doc.activeLayerId);
@@ -472,6 +488,30 @@ export function EditorCanvas() {
         y1: p.y,
       };
       setShapePreview({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
+    } else if (tool.tool === "clone") {
+      const raster = actions.activeRaster();
+      if (!raster) return;
+      if (e.altKey) {
+        actions.setTool({ cloneSource: { x: p.x, y: p.y } });
+        return;
+      }
+      if (!tool.cloneSource) return;
+      // Snapshot the layer at stroke start so we don't re-clone fresh paint.
+      const source = makeCanvas(raster.canvas.width, raster.canvas.height);
+      source.getContext("2d")!.drawImage(raster.canvas, 0, 0);
+      const offsetX = p.x - tool.cloneSource.x;
+      const offsetY = p.y - tool.cloneSource.y;
+      actions.beginStroke(raster.id);
+      cloneStamp(raster, source, p.x, p.y, offsetX, offsetY, tool, doc.selection);
+      interaction.current = {
+        kind: "clone",
+        layerId: raster.id,
+        lastX: p.x,
+        lastY: p.y,
+        source,
+        offsetX,
+        offsetY,
+      };
     } else if (tool.tool === "gradient") {
       const raster = actions.activeRaster();
       if (!raster) return;
@@ -570,6 +610,30 @@ export function EditorCanvas() {
       it.x1 = end.x1;
       it.y1 = end.y1;
       setShapePreview({ x0: it.x0, y0: it.y0, x1: it.x1, y1: it.y1 });
+    } else if (it.kind === "clone") {
+      const raster = actions.activeRaster();
+      if (!raster || raster.id !== it.layerId) return;
+      const dx = p.x - it.lastX;
+      const dy = p.y - it.lastY;
+      const dist = Math.hypot(dx, dy);
+      const step = Math.max(1, tool.brushSize * 0.2);
+      const n = Math.max(1, Math.floor(dist / step));
+      for (let i = 1; i <= n; i++) {
+        const t = i / n;
+        cloneStamp(
+          raster,
+          it.source,
+          it.lastX + dx * t,
+          it.lastY + dy * t,
+          it.offsetX,
+          it.offsetY,
+          tool,
+          doc.selection,
+        );
+      }
+      it.lastX = p.x;
+      it.lastY = p.y;
+      actions.setTool({});
     } else if (it.kind === "gradient") {
       const end = e.shiftKey
         ? constrainShape("line", it.x0, it.y0, p.x, p.y)
@@ -590,6 +654,7 @@ export function EditorCanvas() {
   const onPointerUp = () => {
     const it = interaction.current;
     if (it?.kind === "paint") actions.endStroke(it.erase ? "Erase" : "Paint");
+    if (it?.kind === "clone") actions.endStroke("Clone");
     if (it?.kind === "move") {
       const l = doc.layers.find((x) => x.id === it.layerId);
       if (l) actions.recordProps("Move", l.id, { x: it.origX, y: it.origY }, { x: l.x, y: l.y });
@@ -864,6 +929,15 @@ type InteractionState =
     }
   | { kind: "shape"; layerId: string; x0: number; y0: number; x1: number; y1: number }
   | { kind: "gradient"; layerId: string; x0: number; y0: number; x1: number; y1: number }
+  | {
+      kind: "clone";
+      layerId: string;
+      lastX: number;
+      lastY: number;
+      source: HTMLCanvasElement;
+      offsetX: number;
+      offsetY: number;
+    }
   | { kind: "lasso"; points: { x: number; y: number }[] };
 
 /** Resolve the gradient tool's options into a concrete gradient style. */
@@ -1047,6 +1121,49 @@ function paintStamp(
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);
   ctx.fill();
+  ctx.restore();
+}
+
+/**
+ * Stamp one clone-brush dab at (x, y), copying pixels from the stroke-start
+ * snapshot shifted by the stroke's source offset. Soft edge via a radial
+ * alpha falloff; clipped to the current selection like the brush.
+ */
+function cloneStamp(
+  layer: RasterLayer,
+  source: HTMLCanvasElement,
+  x: number,
+  y: number,
+  offsetX: number,
+  offsetY: number,
+  tool: { brushSize: number; brushHardness: number },
+  selection: Selection | null,
+) {
+  const r = tool.brushSize / 2;
+  const tmp = makeCanvas(layer.canvas.width, layer.canvas.height);
+  const tctx = tmp.getContext("2d")!;
+  // Shift the snapshot so the source pixel lands under the brush.
+  tctx.drawImage(source, offsetX, offsetY);
+  // Keep only a soft disc of it.
+  const grad = tctx.createRadialGradient(x, y, r * tool.brushHardness, x, y, r);
+  grad.addColorStop(0, "rgba(0,0,0,1)");
+  grad.addColorStop(1, "rgba(0,0,0,0)");
+  tctx.globalCompositeOperation = "destination-in";
+  tctx.fillStyle = grad;
+  tctx.beginPath();
+  tctx.arc(x, y, r, 0, Math.PI * 2);
+  tctx.fill();
+  if (selection?.mask) {
+    tctx.drawImage(selection.mask, 0, 0);
+  }
+  const ctx = layer.canvas.getContext("2d")!;
+  ctx.save();
+  if (selection && !selection.mask) {
+    ctx.beginPath();
+    ctx.rect(selection.x, selection.y, selection.w, selection.h);
+    ctx.clip();
+  }
+  ctx.drawImage(tmp, 0, 0);
   ctx.restore();
 }
 

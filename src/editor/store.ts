@@ -36,6 +36,8 @@ interface ToolState {
   // Gradient tool
   gradientKind: "linear" | "radial";
   gradientToTransparent: boolean; // fade to transparent instead of the secondary colour
+  // Clone stamp: doc-space sample point set with Alt+click
+  cloneSource: { x: number; y: number } | null;
 }
 
 interface HistoryEntry {
@@ -100,6 +102,7 @@ const state: State = {
     shapeStrokeWidth: 4,
     gradientKind: "linear",
     gradientToTransparent: false,
+    cloneSource: null,
   },
   history: [],
   historyIndex: -1,

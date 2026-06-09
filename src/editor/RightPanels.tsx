@@ -148,6 +148,29 @@ function ToolOptions() {
       )}
       {t.tool === "shape" && <ShapeOptions />}
       {t.tool === "gradient" && <GradientOptions />}
+      {t.tool === "clone" && (
+        <>
+          <Slider
+            label="Size"
+            value={t.brushSize}
+            min={1}
+            max={400}
+            onChange={(v) => actions.setTool({ brushSize: v })}
+          />
+          <Slider
+            label="Hardness"
+            value={Math.round(t.brushHardness * 100)}
+            min={0}
+            max={100}
+            onChange={(v) => actions.setTool({ brushHardness: v / 100 })}
+          />
+          <p className="mt-1 text-xs text-muted-foreground">
+            {t.cloneSource
+              ? "Source set — paint to clone from it. Alt-click to pick a new source."
+              : "Alt-click the canvas to set the clone source, then paint."}
+          </p>
+        </>
+      )}
       {t.tool === "text" && (
         <div className="space-y-2">
           <FontPicker value={t.fontFamily} onChange={(v) => actions.setTool({ fontFamily: v })} />

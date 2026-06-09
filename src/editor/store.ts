@@ -231,6 +231,15 @@ export const actions = {
     emit();
   },
 
+  /** Replace the whole document (project open / autosave restore). */
+  loadProject(doc: DocState) {
+    state.doc = doc;
+    state.history = [];
+    state.historyIndex = -1;
+    state.tool.maskEdit = false;
+    emit();
+  },
+
   // ---------- Tool ----------
   setTool(t: Partial<ToolState>) {
     state.tool = { ...state.tool, ...t };

@@ -5,6 +5,7 @@ import {
   FilePlus2,
   FolderOpen,
   Image as ImageIcon,
+  Save,
   Scaling,
   Undo2,
   Redo2,
@@ -12,6 +13,7 @@ import {
 } from "lucide-react";
 import { actions, useEditor } from "./store";
 import { compositeDoc } from "./composite";
+import { deserializeDoc, downloadProject, readProjectFile } from "./project";
 import { useRef, useState } from "react";
 import { NewDocumentDialog } from "./NewDocumentDialog";
 import { ResizeImageDialog } from "./ResizeImageDialog";
@@ -23,6 +25,14 @@ export function TopBar() {
   const [resizeOpen, setResizeOpen] = useState(false);
 
   const onOpenFile = async (file: File) => {
+    // .lumen project files (JSON) restore the full layered document.
+    if (/\.(lumen|json)$/i.test(file.name) || file.type === "application/json") {
+      const project = await readProjectFile(file);
+      if (project) {
+        actions.loadProject(await deserializeDoc(project));
+        return;
+      }
+    }
     const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => {
@@ -78,7 +88,7 @@ export function TopBar() {
       <input
         ref={fileInput}
         type="file"
-        accept="image/*"
+        accept="image/*,.lumen,.json,application/json"
         className="hidden"
         onChange={(e) => {
           const f = e.target.files?.[0];
@@ -86,6 +96,9 @@ export function TopBar() {
           e.currentTarget.value = "";
         }}
       />
+      <MenuButton onClick={() => downloadProject(s.doc)} disabled={s.doc.layers.length === 0}>
+        <Save className="h-4 w-4" /> Save
+      </MenuButton>
       <MenuButton onClick={() => setResizeOpen(true)} disabled={s.doc.layers.length === 0}>
         <Scaling className="h-4 w-4" /> Resize
       </MenuButton>

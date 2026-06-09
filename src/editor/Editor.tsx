@@ -1,25 +1,58 @@
 // Editor shell: top bar, left toolbar, center canvas, right panels.
 // Handles drag-and-drop file loading and first-run welcome state.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { TopBar } from "./TopBar";
 import { Toolbar } from "./Toolbar";
 import { RightPanels } from "./RightPanels";
 import { EditorCanvas } from "./EditorCanvas";
-import { actions, useEditor } from "./store";
+import { actions, getState, useEditor } from "./store";
 import { imageFromClipboardEvent, pasteBlobAsLayer } from "./clipboard";
-import { ImagePlus, FilePlus2, Monitor } from "lucide-react";
+import {
+  clearAutosave,
+  deserializeDoc,
+  loadAutosave,
+  readProjectFile,
+  saveAutosave,
+  serializeDoc,
+  type ProjectFile,
+} from "./project";
+import { ImagePlus, FilePlus2, Monitor, History, X } from "lucide-react";
 
 export function Editor() {
   const s = useEditor();
   const [dragOver, setDragOver] = useState(false);
+  const [restorable, setRestorable] = useState<ProjectFile | null>(null);
   const hasDoc = s.doc.layers.length > 0;
 
-  // Initialize an empty document on first mount so the user sees something.
+  // Initialize an empty document on first mount so the user sees something,
+  // and offer to restore the last autosaved session if one exists.
   useEffect(() => {
     if (s.doc.layers.length === 0) actions.newDocument(1200, 800, "#ffffff");
+    loadAutosave()
+      .then((file) => {
+        if (file && file.layers.length > 0) setRestorable(file);
+      })
+      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Autosave to IndexedDB, debounced after the last change.
+  const autosaveTimer = useRef<number | null>(null);
+  useEffect(() => {
+    if (typeof window === "undefined" || s.doc.layers.length === 0) return;
+    if (autosaveTimer.current) window.clearTimeout(autosaveTimer.current);
+    autosaveTimer.current = window.setTimeout(() => {
+      try {
+        void saveAutosave(serializeDoc(getState().doc)).catch(() => {});
+      } catch {
+        // Serialization can fail on exotic canvas states; never break editing.
+      }
+    }, 2000);
+    return () => {
+      if (autosaveTimer.current) window.clearTimeout(autosaveTimer.current);
+    };
+  }, [s.version, s.doc.layers.length]);
 
   useEffect(() => {
     const prevent = (e: DragEvent) => {
@@ -67,6 +100,12 @@ export function Editor() {
         setDragOver(false);
         const file = e.dataTransfer.files?.[0];
         if (!file) return;
+        if (/\.(lumen|json)$/i.test(file.name) || file.type === "application/json") {
+          void readProjectFile(file).then(async (project) => {
+            if (project) actions.loadProject(await deserializeDoc(project));
+          });
+          return;
+        }
         const url = URL.createObjectURL(file);
         const img = new Image();
         img.onload = () => {
@@ -82,6 +121,38 @@ export function Editor() {
         <main className="relative min-w-0">
           <EditorCanvas />
           {!hasDoc && <Welcome />}
+          {restorable && (
+            <div className="absolute left-1/2 top-3 z-20 flex -translate-x-1/2 items-center gap-3 rounded-lg border border-border bg-card/95 px-4 py-2 text-sm shadow-lg backdrop-blur">
+              <History className="h-4 w-4 text-primary" />
+              <span>
+                Restore your previous session
+                {restorable.savedAt
+                  ? ` (saved ${new Date(restorable.savedAt).toLocaleString()})`
+                  : ""}
+                ?
+              </span>
+              <button
+                onClick={async () => {
+                  const file = restorable;
+                  setRestorable(null);
+                  actions.loadProject(await deserializeDoc(file));
+                }}
+                className="rounded bg-primary px-2.5 py-1 text-xs text-primary-foreground hover:opacity-90"
+              >
+                Restore
+              </button>
+              <button
+                onClick={() => {
+                  setRestorable(null);
+                  void clearAutosave().catch(() => {});
+                }}
+                aria-label="Dismiss"
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
           {dragOver && (
             <div className="pointer-events-none absolute inset-4 grid place-items-center rounded-xl border-2 border-dashed border-primary/70 bg-primary/10 text-primary">
               <div className="flex items-center gap-2 text-sm font-medium">

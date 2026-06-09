@@ -34,17 +34,27 @@ Everything important lives in `src/editor/`. The rest of `src/` is framework boi
 
 - **`store.ts` — custom global store, not Redux/Zustand.** A single module-level `state` object exposed via `useSyncExternalStore`. Because layer pixels live in mutable `HTMLCanvasElement`s, the store does **not** rely on referential immutability — instead `emit()` bumps `state.version` to force re-renders. Always mutate through the `actions` object and let it call `emit()`; never mutate `state` from components directly. `useEditor()` subscribes a component; `getState()` reads without subscribing.
 
-- **`types.ts` — the document model.** A `DocState` holds an ordered `Layer[]` (bottom→top), `activeLayerId`, and an optional `Selection`. A `Layer` is either a `RasterLayer` (pixels in an off-screen `canvas`) or a `TextLayer`. Every layer carries transform (`x,y,rotation,flipX,flipY`), `opacity`, `blendMode`, and live `Adjustments`.
+- **`types.ts` — the document model.** A `DocState` holds an ordered `Layer[]` (bottom→top), `activeLayerId`, and an optional `Selection`. A `Layer` is either a `RasterLayer` (pixels in an off-screen `canvas`, plus an optional layer-mask `canvas` — alpha > 0 = visible, composited via `destination-in`) or a `TextLayer`. Every layer carries transform (`x,y,rotation,scaleX,scaleY,flipX,flipY`), `opacity`, `blendMode`, and live `Adjustments`.
+
+- **`composite.ts` — the single compositor.** `drawLayer`/`compositeDoc` apply transform, mask, opacity, blend and live filters. The display canvas, PNG/JPEG/WebP export, eyedropper sampling and clipboard copy all go through it — never duplicate layer-drawing logic elsewhere.
 
 - **Adjustments are non-destructive until baked.** `Adjustments` (brightness/contrast/saturation/hue/blur/etc.) render live via CSS `ctx.filter` (see `buildFilterString`). They only become permanent pixels when `actions.bakeAdjustments(id)` is called. Keep the filter string in `buildFilterString` and the bake logic in `store.ts` in sync — they intentionally produce the same output.
 
-- **`EditorCanvas.tsx` — the interactive stage.** Composites all visible layers into one display canvas on every `version` change, draws the selection overlay separately, and handles all pointer/keyboard/wheel input (pan, zoom, paint, select, move, lasso, in-canvas text editing). Tools dispatch off `tool.tool`. Pixel ops (brush stamping, flood fill, eyedropper) are plain functions at the bottom of this file.
+- **`EditorCanvas.tsx` — the interactive stage.** Composites all visible layers into one display canvas on every `version` change, draws the selection overlay separately (plus shape/gradient previews, clone-source marker and free-transform handles), and handles all pointer/keyboard/wheel input (pan, zoom, paint, select, move/scale/rotate, lasso, shape, gradient, clone, in-canvas text editing). Tools dispatch off `tool.tool`. Pixel ops (brush stamping, clone stamping, flood fill, eyedropper) are plain functions at the bottom of this file. Free-transform math lives in `transform.ts` (anchor-fixed `scaleDrag`/`rotateDrag`); shape/gradient geometry and selection-clipped doc-space drawing live in `draw.ts`.
 
 - **`selection.ts` — mask-based selections.** Non-rectangular selections (lasso, magic wand, feathered) are stored as a doc-sized alpha-mask `canvas` on `Selection.mask`; a plain rect selection has no mask. Paint/fill clip to the mask via `destination-in`. Masks combine with `replace`/`add`/`subtract` modes.
 
-- **History (`store.ts`).** Two entry kinds: `raster` stores before/after `ImageData` snapshots of one layer; `structural` snapshots the whole layer list (for add/delete/reorder/resize/crop). Continuous brush strokes use `beginStroke`/`endStroke` to capture one snapshot per stroke. History is capped at 30 entries. Undo/redo replay snapshots.
+- **History (`store.ts`).** Three entry kinds: `raster` stores before/after `ImageData` snapshots of one layer (and its mask, when present); `structural` snapshots the whole layer list (for add/delete/reorder/resize/crop/mask add-remove); `props` stores shallow before/after patches for cheap move/transform undo. Continuous brush strokes use `beginStroke`/`endStroke` (with a `"pixels" | "mask"` target) to capture one snapshot per stroke. History is capped at 30 entries. Undo/redo replay snapshots.
 
-- **UI shell:** `Editor.tsx` (layout + drag-drop file open), `TopBar.tsx` (new/open/export/undo), `Toolbar.tsx` (tool selection), `RightPanels.tsx` (layers, adjustments, tool options), `fonts.ts` (text font list).
+- **`filters.ts` — destructive pixel filters.** Pure `ImageData` operations (sharpen, vignette, noise, pixelate, levels + auto-levels) applied via `recordRaster` from the Filters panel. Pure functions on purpose — they're unit-tested directly.
+
+- **`project.ts` — persistence (still 100% client-side).** Serializes the document (layers/masks as PNG data URLs + JSON metadata) into a downloadable `.lumen` file, restores it via Open/drag-drop, and powers the debounced IndexedDB autosave with the restore banner in `Editor.tsx`.
+
+- **`clipboard.ts`** — Ctrl/⌘+V pastes a clipboard image as a new layer; Ctrl/⌘+C/X copy/cut the flattened selection (or whole doc) as PNG via the async Clipboard API.
+
+- **`bgremove.ts` — AI background removal.** Lazy-loads MediaPipe selfie segmentation (wasm from cdn.jsdelivr.net, model from storage.googleapis.com — both allowed in the CSP in `src/start.ts`; keep URLs and CSP in sync). Produces a soft alpha mask applied with `destination-in`.
+
+- **UI shell:** `Editor.tsx` (layout + drag-drop file open + paste + autosave/restore), `TopBar.tsx` (new/open/save project/export/undo), `Toolbar.tsx` (tool selection), `RightPanels.tsx` (layers incl. masks & background removal, adjustments, filters, tool options), `fonts.ts` (text font list).
 
 When adding a feature: a new **tool** = add to `ToolId` in `types.ts`, a button in `Toolbar.tsx`, options in `RightPanels.tsx`, and a handler branch in `EditorCanvas.tsx`'s pointer logic. A new **document mutation** = an action in `store.ts` wrapped in `recordRaster`/`_structural` so undo works.
 

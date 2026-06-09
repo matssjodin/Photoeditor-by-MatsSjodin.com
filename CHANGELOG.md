@@ -7,6 +7,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Free transform**: scale (corner/edge handles, aspect-locked corners, Shift to free)
+  and rotate (handle above the layer, Shift snaps to 15°) directly on the Move tool;
+  layers now carry `scaleX/scaleY`. Move and transform drags are undoable.
+- **Shape tool (U)**: rectangle, ellipse, line and arrow with fill/stroke options,
+  live preview, Shift constraints (square/circle/45°), selection clipping, undo.
+- **Gradient tool (D)**: linear/radial, foreground → end colour or fade-to-transparent,
+  WYSIWYG drag preview, fills the layer or the current selection. Undoable.
+- **Clone stamp (S)**: Alt-click to set the source (marked with a crosshair), then
+  paint with a soft interpolated brush to retouch; one undo step per stroke.
+- **Clipboard**: Ctrl/⌘+V pastes a clipboard image as a new centred layer;
+  Ctrl/⌘+C copies the flattened selection (or whole document) as PNG to the OS
+  clipboard; Ctrl/⌘+X also erases the selected pixels from the active layer.
+- **Layer masks**: add (reveal-all or from the current selection), edit with
+  brush (reveal) / eraser (hide), invert, apply, delete. Masks survive undo/redo,
+  duplicate, rotate/flip, resize and crop, and are saved in project files.
+- **Filters panel**: levels (black/white point + gamma with histogram Auto),
+  sharpen, vignette, noise and pixelate — destructive but undoable pixel filters.
+- **Project save/open**: download the full layered document as a single `.lumen`
+  file (layers/masks as embedded PNGs) and restore it via Open or drag-drop.
+- **Autosave**: the document is autosaved to IndexedDB (debounced) and a banner
+  offers to restore the previous session on the next visit — still 100% local.
+- **AI background removal**: one click on a raster layer cuts out the subject using
+  MediaPipe selfie segmentation running in-browser (wasm, lazy-loaded ~16 MB model,
+  GPU with CPU fallback). The image never leaves the device; undoable.
+
 - **Resize image**: a new top-bar action opens a modal to scale the whole image (and all
   layers) to a new size — with an aspect-ratio lock (on by default) so proportions are
   kept, plus quick scale presets (25/50/100/200%). Undoable.

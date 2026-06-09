@@ -11,16 +11,26 @@ there is no backend, no upload, no account, and no tracking of your files.
 
 ## Features
 
-- **Layers** — raster + text layers, reorder, opacity, 12 blend modes, lock/hide, duplicate.
+- **Layers** — raster + text layers, reorder, opacity, 12 blend modes, lock/hide, duplicate,
+  and **layer masks** (non-destructive hide/reveal painted with brush/eraser).
+- **Free transform** — drag handles to scale and rotate any layer (Shift for snapping),
+  fully undoable.
 - **Selections** — rectangular, freehand lasso, magic wand (contiguous/global, tolerance),
   feathering, and add/subtract/replace modes. Paint and fill respect the active selection.
 - **Non-destructive adjustments** — brightness, contrast, saturation, exposure, hue, blur,
   grayscale, sepia, invert. Preview live, then "Apply" to bake into pixels.
-- **Tools** — move, brush, eraser, paint-bucket flood fill, eyedropper, text, crop, plus
-  rotate/flip. Every tool has a single-key shortcut (hover a tool to see it).
+- **Filters** — levels (with Auto), sharpen, vignette, noise, pixelate.
+- **Tools** — move, brush, eraser, paint-bucket flood fill, shapes (rect/ellipse/line/arrow),
+  gradient, clone stamp, eyedropper, text, crop, plus rotate/flip. Every tool has a
+  single-key shortcut (hover a tool to see it).
+- **AI background removal** — one click cuts out the subject, running entirely in your
+  browser via WebAssembly (the model downloads once; your image still never leaves the device).
 - **Canvas** — pan (space-drag / middle mouse), wheel zoom, fit/100%, transparency checkerboard.
-- **Import/Export** — drag-drop or open an image; export to PNG, JPEG, or WebP.
-- **Undo/redo** — full history for both pixel and structural edits (⌘/Ctrl+Z, ⇧+Z / Ctrl+Y).
+- **Import/Export** — drag-drop, open, or paste (Ctrl/⌘+V) an image; copy/cut selections to
+  the OS clipboard; export to PNG, JPEG, or WebP.
+- **Projects & autosave** — save the full layered document as a `.lumen` file and re-open it
+  later; work is autosaved locally (IndexedDB) with one-click session restore.
+- **Undo/redo** — full history for pixel, transform and structural edits (⌘/Ctrl+Z, ⇧+Z / Ctrl+Y).
 
 > Desktop-focused: the editor needs a tablet/desktop-sized screen and a mouse or trackpad.
 > Small screens show a "best on a larger screen" notice.
@@ -38,7 +48,9 @@ there is no backend, no upload, no account, and no tracking of your files.
 | Deploy      | Node server (Nitro `node-server`) in Docker — e.g. Coolify         |
 | Editor core | Custom `<canvas>` engine + `useSyncExternalStore` global store     |
 
-The image editor itself is plain Canvas 2D — no WebGL or third-party image library.
+The image editor itself is plain Canvas 2D — no WebGL or third-party image library. The one
+exception is optional AI background removal, which lazy-loads MediaPipe's segmentation model
+(WebAssembly) on first use and still processes everything locally in the browser.
 
 ## Getting started
 

@@ -13,7 +13,8 @@ import {
 } from "lucide-react";
 import { actions, useEditor } from "./store";
 import { compositeDoc } from "./composite";
-import { deserializeDoc, downloadProject, readProjectFile } from "./project";
+import { downloadProject } from "./project";
+import { openUserFile } from "./open-file";
 import { useRef, useState } from "react";
 import { NewDocumentDialog } from "./NewDocumentDialog";
 import { ResizeImageDialog } from "./ResizeImageDialog";
@@ -23,24 +24,6 @@ export function TopBar() {
   const fileInput = useRef<HTMLInputElement>(null);
   const [newOpen, setNewOpen] = useState(false);
   const [resizeOpen, setResizeOpen] = useState(false);
-
-  const onOpenFile = async (file: File) => {
-    // .lumen project files (JSON) restore the full layered document.
-    if (/\.(lumen|json)$/i.test(file.name) || file.type === "application/json") {
-      const project = await readProjectFile(file);
-      if (project) {
-        actions.loadProject(await deserializeDoc(project));
-        return;
-      }
-    }
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      actions.loadImage(img);
-      URL.revokeObjectURL(url);
-    };
-    img.src = url;
-  };
 
   const exportImage = (type: "png" | "jpeg" | "webp") => {
     const out = compositeDoc(s.doc, { background: type !== "png" ? "#ffffff" : undefined });
@@ -92,7 +75,7 @@ export function TopBar() {
         className="hidden"
         onChange={(e) => {
           const f = e.target.files?.[0];
-          if (f) onOpenFile(f);
+          if (f) void openUserFile(f);
           e.currentTarget.value = "";
         }}
       />

@@ -75,4 +75,30 @@ describe("project serialization", () => {
       false,
     );
   });
+
+  test("isProjectFile rejects absurd dimensions and malformed layers", () => {
+    const good = serializeDoc(getState().doc);
+    expect(isProjectFile(good)).toBe(true);
+    expect(isProjectFile({ ...good, width: 1e9 })).toBe(false);
+    expect(isProjectFile({ ...good, height: 0 })).toBe(false);
+    expect(isProjectFile({ ...good, width: NaN })).toBe(false);
+    expect(isProjectFile({ ...good, layers: [{ type: "raster" }] })).toBe(false);
+    expect(isProjectFile({ ...good, layers: [...good.layers, { type: "evil" }] })).toBe(false);
+    const hugeLayer = { ...good.layers[0], width: 1e9 };
+    expect(isProjectFile({ ...good, layers: [hugeLayer] })).toBe(false);
+    const scriptPixels = { ...good.layers[0], pixels: "javascript:alert(1)" };
+    expect(isProjectFile({ ...good, layers: [scriptPixels] })).toBe(false);
+  });
+
+  test("deserializeDoc defaults garbage numeric props instead of NaN-poisoning", async () => {
+    const file = serializeDoc(getState().doc);
+    const layer = file.layers[0] as unknown as Record<string, unknown>;
+    layer.x = "nope";
+    layer.opacity = 99;
+    layer.rotation = null;
+    const doc = await deserializeDoc(file, napiLoader);
+    expect(doc.layers[0].x).toBe(0);
+    expect(doc.layers[0].opacity).toBe(1);
+    expect(doc.layers[0].rotation).toBe(0);
+  });
 });

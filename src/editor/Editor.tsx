@@ -8,16 +8,18 @@ import { RightPanels } from "./RightPanels";
 import { EditorCanvas } from "./EditorCanvas";
 import { actions, getState, useEditor } from "./store";
 import { imageFromClipboardEvent, pasteBlobAsLayer } from "./clipboard";
+import { openUserFile } from "./open-file";
 import {
   clearAutosave,
   deserializeDoc,
   loadAutosave,
-  readProjectFile,
   saveAutosave,
   serializeDoc,
   type ProjectFile,
 } from "./project";
 import { ImagePlus, FilePlus2, Monitor, History, X } from "lucide-react";
+import { toast } from "sonner";
+import { Toaster } from "@/components/ui/sonner";
 
 export function Editor() {
   const s = useEditor();
@@ -78,7 +80,9 @@ export function Editor() {
       const blob = imageFromClipboardEvent(e);
       if (!blob) return;
       e.preventDefault();
-      void pasteBlobAsLayer(blob);
+      void pasteBlobAsLayer(blob).catch(() => {
+        toast.error("Couldn't paste the image from the clipboard.");
+      });
     };
     window.addEventListener("paste", onPaste);
     return () => window.removeEventListener("paste", onPaste);
@@ -100,19 +104,7 @@ export function Editor() {
         setDragOver(false);
         const file = e.dataTransfer.files?.[0];
         if (!file) return;
-        if (/\.(lumen|json)$/i.test(file.name) || file.type === "application/json") {
-          void readProjectFile(file).then(async (project) => {
-            if (project) actions.loadProject(await deserializeDoc(project));
-          });
-          return;
-        }
-        const url = URL.createObjectURL(file);
-        const img = new Image();
-        img.onload = () => {
-          actions.loadImage(img);
-          URL.revokeObjectURL(url);
-        };
-        img.src = url;
+        void openUserFile(file);
       }}
     >
       <TopBar />
@@ -135,7 +127,11 @@ export function Editor() {
                 onClick={async () => {
                   const file = restorable;
                   setRestorable(null);
-                  actions.loadProject(await deserializeDoc(file));
+                  try {
+                    actions.loadProject(await deserializeDoc(file));
+                  } catch {
+                    toast.error("Couldn't restore the previous session.");
+                  }
                 }}
                 className="rounded bg-primary px-2.5 py-1 text-xs text-primary-foreground hover:opacity-90"
               >
@@ -164,6 +160,7 @@ export function Editor() {
         <RightPanels />
       </div>
       <MobileNotice />
+      <Toaster position="bottom-center" />
     </div>
   );
 }

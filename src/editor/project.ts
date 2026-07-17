@@ -112,15 +112,53 @@ function serializeLayer(l: Layer): SerializedLayer {
   };
 }
 
+// Upper bound for document/layer dimensions on restore. Matches the practical
+// canvas size limit of mainstream browsers and stops a malformed or hostile
+// project file from requesting an absurd allocation.
+const MAX_DIM = 16384;
+
+function isDim(v: unknown): v is number {
+  return typeof v === "number" && Number.isFinite(v) && v >= 1 && v <= MAX_DIM;
+}
+
+function isImageDataUrl(v: unknown): v is string {
+  return typeof v === "string" && v.startsWith("data:image/");
+}
+
+function isSerializedLayer(value: unknown): value is SerializedLayer {
+  const s = value as SerializedLayer | null;
+  if (!s || typeof s !== "object") return false;
+  if (typeof s.id !== "string" || typeof s.name !== "string") return false;
+  if (s.type === "raster") {
+    return (
+      isDim(s.width) &&
+      isDim(s.height) &&
+      isImageDataUrl(s.pixels) &&
+      (s.mask === undefined || isImageDataUrl(s.mask))
+    );
+  }
+  if (s.type === "text") {
+    return (
+      typeof s.text === "string" &&
+      typeof s.fontFamily === "string" &&
+      typeof s.color === "string" &&
+      typeof s.fontSize === "number" &&
+      Number.isFinite(s.fontSize)
+    );
+  }
+  return false;
+}
+
 export function isProjectFile(data: unknown): data is ProjectFile {
   const d = data as ProjectFile | null;
   return (
     !!d &&
     d.app === "lumen" &&
     d.version === 1 &&
-    typeof d.width === "number" &&
-    typeof d.height === "number" &&
-    Array.isArray(d.layers)
+    isDim(d.width) &&
+    isDim(d.height) &&
+    Array.isArray(d.layers) &&
+    d.layers.every(isSerializedLayer)
   );
 }
 
@@ -139,23 +177,27 @@ export async function deserializeDoc(
   file: ProjectFile,
   loadImage: ImageLoader = browserImageLoader,
 ): Promise<DocState> {
+  // Tolerate missing/garbage numeric props from hand-edited or truncated
+  // files — fall back to sane defaults instead of NaN-poisoning transforms.
+  const num = (v: unknown, fallback: number) =>
+    typeof v === "number" && Number.isFinite(v) ? v : fallback;
   const layers: Layer[] = [];
   for (const s of file.layers) {
     const base = {
       id: s.id,
       name: s.name,
-      visible: s.visible,
-      locked: s.locked,
-      opacity: s.opacity,
+      visible: s.visible !== false,
+      locked: s.locked === true,
+      opacity: Math.min(1, Math.max(0, num(s.opacity, 1))),
       blendMode: s.blendMode,
       adjustments: { ...DEFAULT_ADJUSTMENTS, ...s.adjustments },
-      x: s.x,
-      y: s.y,
-      rotation: s.rotation ?? 0,
-      scaleX: s.scaleX ?? 1,
-      scaleY: s.scaleY ?? 1,
-      flipX: s.flipX ?? false,
-      flipY: s.flipY ?? false,
+      x: num(s.x, 0),
+      y: num(s.y, 0),
+      rotation: num(s.rotation, 0),
+      scaleX: num(s.scaleX, 1),
+      scaleY: num(s.scaleY, 1),
+      flipX: s.flipX === true,
+      flipY: s.flipY === true,
     };
     if (s.type === "raster") {
       const canvas = makeCanvas(s.width, s.height);

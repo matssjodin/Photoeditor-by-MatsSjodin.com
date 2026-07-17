@@ -16,13 +16,15 @@ there is no backend, no upload, no account, and no tracking of your files.
 - **Free transform** — drag handles to scale and rotate any layer (Shift for snapping),
   fully undoable.
 - **Selections** — rectangular, freehand lasso, magic wand (contiguous/global, tolerance),
-  feathering, and add/subtract/replace modes. Paint and fill respect the active selection.
+  feathering, and add/subtract/replace modes. Paint and fill respect the active selection;
+  Delete/Backspace clears the selected pixels.
 - **Non-destructive adjustments** — brightness, contrast, saturation, exposure, hue, blur,
   grayscale, sepia, invert. Preview live, then "Apply" to bake into pixels.
 - **Filters** — levels (with Auto), sharpen, vignette, noise, pixelate.
 - **Tools** — move, brush, eraser, paint-bucket flood fill, shapes (rect/ellipse/line/arrow),
   gradient, clone stamp, eyedropper, text, crop, plus rotate/flip. Every tool has a
-  single-key shortcut (hover a tool to see it).
+  single-key shortcut (hover a tool to see it). Crop is non-destructive: layers are
+  repositioned, so pixels outside the crop can be moved back into view.
 - **AI background removal** — one click cuts out the subject, running entirely in your
   browser via WebAssembly (the model downloads once; your image still never leaves the device).
 - **Canvas** — pan (space-drag / middle mouse), wheel zoom, fit/100%, transparency checkerboard.

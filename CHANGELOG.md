@@ -7,6 +7,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Delete/Backspace clears the selection**: with an active selection on an unlocked
+  raster layer, Delete now erases the selected pixels (undoable) instead of deleting
+  the layer; without a selection it still deletes the active layer.
+- **Error feedback for file operations**: unreadable images, invalid `.lumen` project
+  files, failed session restores and clipboard copy/paste errors now show a toast
+  instead of failing silently (sonner `Toaster` is now mounted).
+- Stricter `.lumen` validation on open/restore: document and layer dimensions are
+  bounded (max 16384), layer entries are shape-checked, pixel data must be
+  `data:image/*` URLs, and garbage numeric props fall back to sane defaults.
+- Docker `HEALTHCHECK` for the runtime image and JSON-LD (`WebApplication`)
+  structured data on the landing page.
+
 - **Free transform**: scale (corner/edge handles, aspect-locked corners, Shift to free)
   and rotate (handle above the layer, Shift snaps to 15°) directly on the Move tool;
   layers now carry `scaleX/scaleY`. Move and transform drags are undoable.
@@ -69,6 +81,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **Painting on moved or pasted layers landed in the wrong place.** Brush, eraser
+  (including mask editing), flood fill, clone stamp and Cut operated in document
+  coordinates directly on the layer canvas, ignoring the layer's x/y offset (the
+  wand and shape/gradient tools already compensated). The pixel ops now live in
+  `draw.ts` next to `clippedLayerDraw` and share its doc-space→layer-space handling.
+- **Crop mangled offset/transformed layers.** Crop treated the doc-space selection
+  as layer-canvas coordinates, keeping the wrong pixel region on moved/pasted
+  layers. Crop is now a pure reposition: the document shrinks and layers shift, so
+  pixels outside the crop survive (move a layer to reveal them) and rotated/scaled
+  layers stay intact.
+- **Resize stretched pasted layers.** Resizing the image forced every raster canvas
+  to the full document size and ignored layer offsets; canvases and offsets now
+  scale proportionally.
+- **Flood fill could hang the tab** when the fill colour was within tolerance of the
+  clicked colour (filled pixels re-matched forever); the walk now tracks visited
+  pixels like the magic wand.
+- Garbled characters (UTF-8 mojibake) in the zoom HUD (`Â·`/`Ã—`), the zoom-out
+  button and the text-tool placeholder.
+- Wheel zoom used React's passive `onWheel`, so `preventDefault()` was a no-op:
+  Ctrl+wheel zoomed the whole page and Chrome logged warnings. The canvas now uses
+  a native non-passive listener (interactive widgets still scroll normally).
+- The eyedropper sampled `#000000` when clicking outside the document; it now does
+  nothing there.
+- `bakeAdjustments` duplicated the live-preview filter string by hand; it now calls
+  the shared `buildFilterString`, so bake and preview can't drift.
+- Patched the esbuild dev-server advisory (GHSA-g7r4-m6w7-qqqr) by updating vite to
+  7.3.6 / esbuild 0.28.1 (tsx's nested esbuild likewise).
 - **Text-tool fonts never loaded** — the Google Fonts CSS `@import` was dropped at
   build because it followed other at-rules. Fonts now load via `<link>` + preconnect
   in the document head.
@@ -79,6 +118,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Package renamed from the scaffold's `tanstack_start_ts` to
+  `photoeditor-matssjodin-com`.
 - **License: all-rights-reserved → Apache-2.0.** The project is now free to use, modify,
   and redistribute. Added a `NOTICE` file requiring redistributions to keep attribution to
   "Photo Editor by MatsSjodin.com" and a link to https://matssjodin.com (Apache-2.0 §4(d)),

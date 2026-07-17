@@ -107,9 +107,31 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:description", content: SITE_DESCRIPTION },
       { name: "twitter:image", content: SITE_OG_IMAGE },
     ],
-    scripts: PLAUSIBLE_DOMAIN
-      ? [{ src: "https://plausible.io/js/script.js", defer: true, "data-domain": PLAUSIBLE_DOMAIN }]
-      : [],
+    scripts: [
+      ...(PLAUSIBLE_DOMAIN
+        ? [
+            {
+              src: "https://plausible.io/js/script.js",
+              defer: true,
+              "data-domain": PLAUSIBLE_DOMAIN,
+            },
+          ]
+        : []),
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "WebApplication",
+          name: SITE_NAME,
+          url: SITE_URL,
+          description: SITE_DESCRIPTION,
+          applicationCategory: "DesignApplication",
+          operatingSystem: "Any",
+          offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+          author: { "@type": "Person", name: "Mats Sjödin", url: "https://matssjodin.com" },
+        }),
+      },
+    ],
     links: [
       {
         rel: "stylesheet",

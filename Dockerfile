@@ -27,5 +27,9 @@ EXPOSE 3000
 # Nitro bundles a self-contained server — no node_modules needed at runtime.
 COPY --from=build /app/.output ./.output
 
+# Container-level liveness probe (busybox wget ships with alpine).
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD wget -qO /dev/null "http://127.0.0.1:${PORT:-3000}/" || exit 1
+
 USER node
 CMD ["node", ".output/server/index.mjs"]

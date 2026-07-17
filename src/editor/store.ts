@@ -4,6 +4,7 @@
 import { useSyncExternalStore } from "react";
 import {
   DEFAULT_ADJUSTMENTS,
+  buildFilterString,
   type Adjustments,
   type DocState,
   type Layer,
@@ -387,18 +388,22 @@ export const actions = {
       const sx = w / state.doc.width;
       const sy = h / state.doc.height;
       state.doc.layers.forEach((l) => {
+        // Every layer's position scales with the document; raster canvases
+        // scale by their own size (they may be smaller/larger than the doc,
+        // e.g. pasted layers), text scales via font size.
+        l.x *= sx;
+        l.y *= sy;
         if (l.type === "raster") {
-          const out = makeCanvas(w, h);
-          out.getContext("2d")!.drawImage(l.canvas, 0, 0, w, h);
-          l.canvas = out;
-          if (l.mask) {
-            const m = makeCanvas(w, h);
-            m.getContext("2d")!.drawImage(l.mask, 0, 0, w, h);
-            l.mask = m;
-          }
+          const scale = (canvas: HTMLCanvasElement) => {
+            const nw = Math.max(1, Math.round(canvas.width * sx));
+            const nh = Math.max(1, Math.round(canvas.height * sy));
+            const out = makeCanvas(nw, nh);
+            out.getContext("2d")!.drawImage(canvas, 0, 0, nw, nh);
+            return out;
+          };
+          l.canvas = scale(l.canvas);
+          if (l.mask) l.mask = scale(l.mask);
         } else {
-          l.x *= sx;
-          l.y *= sy;
           l.fontSize *= (sx + sy) / 2;
         }
       });
@@ -408,30 +413,47 @@ export const actions = {
     });
   },
 
+  /**
+   * Crop the document to the selection's bounding box. Layers are shifted,
+   * not re-rendered, so pixels outside the crop survive (they can be moved
+   * back into view later) and rotated/scaled layers stay intact.
+   */
   cropToSelection() {
     const sel = state.doc.selection;
     if (!sel) return;
     this._structural("Crop", () => {
       const { x, y, w, h } = sel;
       state.doc.layers.forEach((l) => {
-        if (l.type === "raster") {
-          const out = makeCanvas(w, h);
-          out.getContext("2d")!.drawImage(l.canvas, -x, -y);
-          l.canvas = out;
-          if (l.mask) {
-            const m = makeCanvas(w, h);
-            m.getContext("2d")!.drawImage(l.mask, -x, -y);
-            l.mask = m;
-          }
-        } else {
-          l.x -= x;
-          l.y -= y;
-        }
+        l.x -= x;
+        l.y -= y;
       });
-      state.doc.width = w;
-      state.doc.height = h;
+      state.doc.width = Math.max(1, Math.round(w));
+      state.doc.height = Math.max(1, Math.round(h));
       state.doc.selection = null;
     });
+  },
+
+  /**
+   * Erase the selected pixels from the active raster layer (Delete key, Cut).
+   * Compensates for the layer's offset; returns false when there's nothing
+   * to erase (no selection or no unlocked raster layer).
+   */
+  eraseSelection(label = "Delete selection"): boolean {
+    const sel = state.doc.selection;
+    const l = this.activeRaster();
+    if (!sel || !l) return false;
+    this.recordRaster(label, l.id, () => {
+      const ctx = l.canvas.getContext("2d")!;
+      if (sel.mask) {
+        ctx.save();
+        ctx.globalCompositeOperation = "destination-out";
+        ctx.drawImage(sel.mask, -l.x, -l.y);
+        ctx.restore();
+      } else {
+        ctx.clearRect(sel.x - l.x, sel.y - l.y, sel.w, sel.h);
+      }
+    });
+    return true;
   },
 
   // ---------- Layer masks ----------
@@ -520,21 +542,9 @@ export const actions = {
     this.recordRaster("Apply adjustments", id, () => {
       const out = makeCanvas(l.canvas.width, l.canvas.height);
       const ctx = out.getContext("2d")!;
-      // CSS-style filter is supported on canvas in modern browsers.
-      // We construct the same string as buildFilterString.
-      const filter = [
-        `brightness(${1 + a.brightness / 100 + a.exposure / 100})`,
-        `contrast(${1 + a.contrast / 100})`,
-        `saturate(${1 + a.saturation / 100})`,
-        `hue-rotate(${a.hue}deg)`,
-        a.blur > 0 ? `blur(${a.blur}px)` : "",
-        a.grayscale > 0 ? `grayscale(${a.grayscale}%)` : "",
-        a.sepia > 0 ? `sepia(${a.sepia}%)` : "",
-        a.invert > 0 ? `invert(${a.invert}%)` : "",
-      ]
-        .filter(Boolean)
-        .join(" ");
-      ctx.filter = filter;
+      // CSS-style filter is supported on canvas in modern browsers. Baking
+      // uses the exact same string as the live preview (compositing).
+      ctx.filter = buildFilterString(a);
       ctx.drawImage(l.canvas, 0, 0);
       l.canvas.getContext("2d")!.clearRect(0, 0, l.canvas.width, l.canvas.height);
       l.canvas.getContext("2d")!.drawImage(out, 0, 0);

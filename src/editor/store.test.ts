@@ -230,6 +230,64 @@ describe("layer masks", () => {
   });
 });
 
+describe("crop and resize with offset layers", () => {
+  function addRedPastedLayer(size = 10) {
+    const img = document.createElement("canvas") as HTMLCanvasElement;
+    img.width = size;
+    img.height = size;
+    const ictx = img.getContext("2d")!;
+    ictx.fillStyle = "#ff0000";
+    ictx.fillRect(0, 0, size, size);
+    actions.addImageLayer(img, size, size, "Pasted");
+    return getState().doc.layers[1] as RasterLayer;
+  }
+
+  test("cropToSelection shifts every layer by the selection origin", () => {
+    const pasted = addRedPastedLayer(); // 10×10 at (5,5)
+    actions.setSelection({ x: 5, y: 5, w: 10, h: 10 });
+    actions.cropToSelection();
+    const s = getState();
+    expect(s.doc.width).toBe(10);
+    expect(s.doc.height).toBe(10);
+    expect(pasted.x).toBe(0); // was 5, shifted by -5
+    expect(s.doc.layers[0].x).toBe(-5); // background keeps its pixels, shifted
+    expect(pixel(pasted, 5, 5)[0]).toBe(255); // pixels untouched
+    actions.undo();
+    expect(getState().doc.width).toBe(20);
+    expect((getState().doc.layers[1] as RasterLayer).x).toBe(5);
+  });
+
+  test("resizeDocument scales layer offsets and canvas sizes proportionally", () => {
+    addRedPastedLayer(); // 10×10 at (5,5) in a 20×20 doc
+    actions.resizeDocument(40, 40);
+    const resized = getState().doc.layers[1] as RasterLayer;
+    expect(resized.canvas.width).toBe(20); // scaled ×2, not stretched to 40
+    expect(resized.canvas.height).toBe(20);
+    expect(resized.x).toBe(10);
+    expect(resized.y).toBe(10);
+    expect(pixel(resized, 10, 10)[0]).toBe(255);
+    // Background layer (doc-sized) still fills the new document.
+    const bg = getState().doc.layers[0] as RasterLayer;
+    expect(bg.canvas.width).toBe(40);
+    actions.undo();
+    expect((getState().doc.layers[1] as RasterLayer).canvas.width).toBe(10);
+  });
+
+  test("eraseSelection clears doc-space pixels on an offset layer", () => {
+    const pasted = addRedPastedLayer(); // active, 10×10 at (5,5)
+    actions.setSelection({ x: 5, y: 5, w: 2, h: 2 });
+    expect(actions.eraseSelection()).toBe(true);
+    expect(pixel(pasted, 0, 0)[3]).toBe(0); // doc (5,5) = layer (0,0)
+    expect(pixel(pasted, 5, 5)[3]).toBe(255);
+    actions.undo();
+    expect(pixel(activeRaster(), 0, 0)[3]).toBe(255);
+  });
+
+  test("eraseSelection is a no-op without a selection", () => {
+    expect(actions.eraseSelection()).toBe(false);
+  });
+});
+
 describe("history bounds", () => {
   test("undo with empty history is a safe no-op", () => {
     expect(() => actions.undo()).not.toThrow();

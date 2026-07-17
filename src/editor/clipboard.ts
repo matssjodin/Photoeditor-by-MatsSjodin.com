@@ -55,20 +55,7 @@ export async function copyToClipboard(cut: boolean): Promise<boolean> {
   await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
 
   if (cut && sel) {
-    const raster = actions.activeRaster();
-    if (raster) {
-      actions.recordRaster("Cut", raster.id, () => {
-        const ctx = raster.canvas.getContext("2d")!;
-        if (sel.mask) {
-          ctx.save();
-          ctx.globalCompositeOperation = "destination-out";
-          ctx.drawImage(sel.mask, 0, 0);
-          ctx.restore();
-        } else {
-          ctx.clearRect(sel.x, sel.y, sel.w, sel.h);
-        }
-      });
-    }
+    actions.eraseSelection("Cut");
   }
   return true;
 }

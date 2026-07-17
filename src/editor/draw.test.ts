@@ -1,5 +1,12 @@
 import { describe, expect, test } from "vitest";
-import { clippedLayerDraw, constrainShape, drawShape } from "./draw";
+import {
+  clippedLayerDraw,
+  cloneStamp,
+  constrainShape,
+  drawShape,
+  floodFill,
+  paintStamp,
+} from "./draw";
 import { makeCanvas, type RasterLayer } from "./types";
 import { newRasterLayer, actions } from "./store";
 
@@ -150,5 +157,104 @@ describe("clippedLayerDraw", () => {
     });
     expect(px(layer.canvas, 4, 4)[1]).toBe(255);
     expect(px(layer.canvas, 20, 20)[3]).toBe(0);
+  });
+
+  test("destination-out composite erases instead of painting", () => {
+    actions.newDocument(40, 40, "transparent");
+    const layer = newRasterLayer("L", "#ff0000") as RasterLayer;
+    clippedLayerDraw(
+      layer,
+      null,
+      (ctx) => {
+        ctx.fillStyle = "rgba(0,0,0,1)";
+        ctx.fillRect(0, 0, 10, 10);
+      },
+      { composite: "destination-out" },
+    );
+    expect(px(layer.canvas, 5, 5)[3]).toBe(0);
+    expect(px(layer.canvas, 20, 20)[3]).toBe(255);
+  });
+});
+
+describe("paintStamp", () => {
+  const tool = { brushSize: 10, brushHardness: 0.5, brushColor: "#ff0000" };
+
+  test("paints at the doc-space position on an offset layer", () => {
+    actions.newDocument(40, 40, "transparent");
+    const layer = newRasterLayer("L") as RasterLayer;
+    layer.x = 10;
+    layer.y = 10;
+    paintStamp(layer, 20, 20, false, tool, null);
+    expect(px(layer.canvas, 10, 10)[0]).toBe(255); // doc (20,20) → layer (10,10)
+    expect(px(layer.canvas, 20, 20)[3]).toBe(0); // old (buggy) location untouched
+  });
+
+  test("erases at the doc-space position on an offset layer", () => {
+    actions.newDocument(40, 40, "transparent");
+    const layer = newRasterLayer("L", "#00ff00") as RasterLayer;
+    layer.x = 10;
+    layer.y = 10;
+    paintStamp(layer, 20, 20, true, tool, null);
+    expect(px(layer.canvas, 10, 10)[3]).toBe(0);
+    expect(px(layer.canvas, 30, 30)[3]).toBe(255);
+  });
+
+  test("targets the layer mask when given one", () => {
+    actions.newDocument(40, 40, "transparent");
+    const layer = newRasterLayer("L", "#00ff00") as RasterLayer;
+    layer.x = 10;
+    layer.mask = makeCanvas(40, 40);
+    paintStamp(layer, 20, 10, false, tool, null, layer.mask);
+    expect(px(layer.mask, 10, 10)[3]).toBe(255); // mask revealed, offset-compensated
+    expect(px(layer.canvas, 10, 10)[1]).toBe(255); // pixels untouched
+  });
+});
+
+describe("cloneStamp", () => {
+  test("copies from the stroke source offset in layer space", () => {
+    actions.newDocument(40, 40, "transparent");
+    const layer = newRasterLayer("L") as RasterLayer;
+    layer.x = 10;
+    layer.y = 10;
+    const ctx = layer.canvas.getContext("2d")!;
+    ctx.fillStyle = "#ff0000";
+    ctx.fillRect(0, 0, 4, 4); // source patch at layer (0..4)
+    const source = makeCanvas(40, 40);
+    source.getContext("2d")!.drawImage(layer.canvas, 0, 0);
+    // Clone source picked at doc (12,12) = layer (2,2); dab at doc (30,30).
+    cloneStamp(layer, source, 30, 30, 18, 18, { brushSize: 10, brushHardness: 0.5 }, null);
+    expect(px(layer.canvas, 20, 20)[0]).toBe(255); // patch cloned to layer (20,20)
+  });
+});
+
+describe("floodFill", () => {
+  test("fills in layer space from a doc-space seed", () => {
+    actions.newDocument(40, 40, "transparent");
+    const layer = newRasterLayer("L") as RasterLayer;
+    layer.x = 10;
+    layer.y = 10;
+    const ctx = layer.canvas.getContext("2d")!;
+    ctx.fillStyle = "#ff0000";
+    ctx.fillRect(0, 0, 10, 10);
+    floodFill(layer, 12, 12, "#00ff00", null, 0); // doc (12,12) = layer (2,2)
+    expect(px(layer.canvas, 5, 5)).toEqual([0, 255, 0, 255]);
+    expect(px(layer.canvas, 15, 15)[3]).toBe(0); // outside the region untouched
+  });
+
+  test("respects a doc-space rect selection on an offset layer", () => {
+    actions.newDocument(40, 40, "transparent");
+    const layer = newRasterLayer("L", "#ff0000") as RasterLayer;
+    layer.x = 10;
+    layer.y = 10;
+    floodFill(layer, 20, 20, "#0000ff", { x: 15, y: 15, w: 10, h: 10 }, 0);
+    expect(px(layer.canvas, 8, 8)[2]).toBe(255); // doc (18,18) inside selection
+    expect(px(layer.canvas, 2, 2)[2]).toBe(0); // doc (12,12) outside selection
+  });
+
+  test("terminates when the fill colour is within tolerance of the target", () => {
+    actions.newDocument(20, 20, "transparent");
+    const layer = newRasterLayer("L", "#000000") as RasterLayer;
+    floodFill(layer, 5, 5, "#101010", null, 32);
+    expect(px(layer.canvas, 0, 0)[0]).toBe(16);
   });
 });

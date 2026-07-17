@@ -2,14 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { actions, getState, useEditor } from "./store";
-import {
-  makeCanvas,
-  type Layer,
-  type RasterLayer,
-  type Selection,
-  type TextLayer,
-  type ToolId,
-} from "./types";
+import { makeCanvas, type Layer, type RasterLayer, type TextLayer, type ToolId } from "./types";
 import { compositeDoc, drawLayer, layerSizeOf } from "./composite";
 import {
   HANDLE_UNITS,
@@ -29,16 +22,19 @@ import {
 } from "./selection";
 import {
   clippedLayerDraw,
+  cloneStamp,
   constrainShape,
   drawGradient,
   drawShape,
-  hexToRgba,
+  floodFill,
+  paintStamp,
   type GradientStyle,
   type ShapeStyle,
 } from "./draw";
 import { copyToClipboard } from "./clipboard";
 import { FONTS } from "./fonts";
 import { Bold, Italic, Check } from "lucide-react";
+import { toast } from "sonner";
 
 interface ViewState {
   zoom: number;
@@ -286,20 +282,28 @@ export function EditorCanvas() {
       // Copy/Cut the flattened selection (or whole doc) as a PNG.
       if (meta && (e.key.toLowerCase() === "c" || e.key.toLowerCase() === "x") && !typing) {
         e.preventDefault();
-        void copyToClipboard(e.key.toLowerCase() === "x").catch(() => {});
+        void copyToClipboard(e.key.toLowerCase() === "x").catch(() => {
+          toast.error("Couldn't copy to the clipboard.");
+        });
       }
       if (e.key === "Escape") actions.setSelection(null);
       if (e.key === "0" && meta) {
         e.preventDefault();
         fitView();
       }
-      // Delete the active layer (Photoshop-style), unless typing/editing text.
-      // Read live state so the handler never holds a stale active layer.
+      // Delete/Backspace: with an active selection, clear the selected pixels
+      // (Photoshop behaviour); otherwise delete the active layer. Read live
+      // state so the handler never holds a stale active layer.
       if ((e.key === "Delete" || e.key === "Backspace") && !meta && !typing) {
-        const active = actions.activeLayer();
-        if (active) {
+        if (getState().doc.selection && actions.activeRaster()) {
           e.preventDefault();
-          actions.deleteLayer(active.id);
+          actions.eraseSelection("Delete selection");
+        } else {
+          const active = actions.activeLayer();
+          if (active) {
+            e.preventDefault();
+            actions.deleteLayer(active.id);
+          }
         }
       }
       // Enter applies the crop when the Crop tool has a marked area.
@@ -332,19 +336,32 @@ export function EditorCanvas() {
     };
   }, [fitView, editingTextId]);
 
-  // Wheel zoom
-  const onWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    const el = containerRef.current!;
-    const rect = el.getBoundingClientRect();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
-    const factor = Math.exp(-e.deltaY * 0.0015);
-    const next = clamp(view.zoom * factor, MIN_ZOOM, MAX_ZOOM);
-    const docX = (mx - view.tx) / view.zoom;
-    const docY = (my - view.ty) / view.zoom;
-    setView({ zoom: next, tx: mx - docX * next, ty: my - docY * next });
-  };
+  // Wheel zoom. Attached natively with { passive: false }: React registers
+  // wheel listeners passively, so preventDefault() in a synthetic handler is
+  // a no-op and Ctrl+wheel would zoom the whole page instead of the canvas.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      // Let interactive widgets (in-canvas text editor, its font select…)
+      // handle their own scrolling instead of zooming the stage.
+      const t = e.target as HTMLElement | null;
+      if (t && t.closest("textarea, select, input, button")) return;
+      e.preventDefault();
+      const rect = el.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      setView((v) => {
+        const factor = Math.exp(-e.deltaY * 0.0015);
+        const next = clamp(v.zoom * factor, MIN_ZOOM, MAX_ZOOM);
+        const docX = (mx - v.tx) / v.zoom;
+        const docY = (my - v.ty) / v.zoom;
+        return { zoom: next, tx: mx - docX * next, ty: my - docY * next };
+      });
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
 
   // Pointer interactions
   const toDocPos = (e: React.PointerEvent): { x: number; y: number } => {
@@ -388,7 +405,7 @@ export function EditorCanvas() {
       const tag = (e.target as HTMLElement).tagName;
       if (tag !== "TEXTAREA") {
         commitTextEdit();
-        // Don't process this click further â€” let user place a new cursor next time.
+        // Don't process this click further — let user place a new cursor next time.
         return;
       }
       return;
@@ -483,14 +500,7 @@ export function EditorCanvas() {
       const raster = actions.activeRaster();
       if (!raster) return;
       actions.recordRaster("Fill", raster.id, () => {
-        floodFill(
-          raster.canvas,
-          Math.floor(p.x),
-          Math.floor(p.y),
-          tool.brushColor,
-          doc.selection,
-          tool.tolerance,
-        );
+        floodFill(raster, p.x, p.y, tool.brushColor, doc.selection, tool.tolerance);
       });
     } else if (tool.tool === "shape") {
       const raster = actions.activeRaster();
@@ -668,7 +678,7 @@ export function EditorCanvas() {
       it.y1 = end.y1;
       setGradientPreview({ x0: it.x0, y0: it.y0, x1: it.x1, y1: it.y1 });
     } else if (it.kind === "lasso") {
-      // Append point if it has moved enough â€” keeps polygon light.
+      // Append point if it has moved enough — keeps polygon light.
       const last = it.points[it.points.length - 1];
       if (Math.hypot(p.x - last.x, p.y - last.y) > 2 / view.zoom) {
         it.points.push(p);
@@ -756,7 +766,6 @@ export function EditorCanvas() {
     <div
       ref={containerRef}
       className="relative h-full w-full overflow-hidden bg-[var(--color-canvas-bg)]"
-      onWheel={onWheel}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -789,7 +798,7 @@ export function EditorCanvas() {
             const invZ = 1 / view.zoom;
             return (
               <>
-                {/* Floating formatting toolbar â€” counter-scaled so it stays a comfortable size */}
+                {/* Floating formatting toolbar — counter-scaled so it stays a comfortable size */}
                 <div
                   onPointerDown={(e) => e.stopPropagation()}
                   onWheel={(e) => e.stopPropagation()}
@@ -871,7 +880,7 @@ export function EditorCanvas() {
                   value={layer.text}
                   autoFocus
                   spellCheck={false}
-                  placeholder="Type your textâ€¦"
+                  placeholder="Type your text…"
                   onChange={(e) => actions.updateLayer(layer.id, { text: e.target.value })}
                   onPointerDown={(e) => e.stopPropagation()}
                   onWheel={(e) => e.stopPropagation()}
@@ -910,14 +919,14 @@ export function EditorCanvas() {
 
       {/* HUD */}
       <div className="pointer-events-none absolute bottom-3 left-3 rounded-md bg-black/50 px-2 py-1 text-xs text-white/80 backdrop-blur">
-        {Math.round(view.zoom * 100)}% Â· {doc.width}Ã—{doc.height}px
+        {Math.round(view.zoom * 100)}% · {doc.width}×{doc.height}px
       </div>
       <div className="absolute bottom-3 right-3 flex gap-1 text-xs">
         <button
           onClick={() => setView((v) => ({ ...v, zoom: clamp(v.zoom / 1.25, MIN_ZOOM, MAX_ZOOM) }))}
           className="rounded bg-secondary px-2 py-1"
         >
-          âˆ’
+          −
         </button>
         <button onClick={fitView} className="rounded bg-secondary px-2 py-1">
           Fit
@@ -1095,179 +1104,14 @@ function clamp(n: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, n));
 }
 
-/** Active raster layer ignoring lock state â€” wand only reads pixels. */
+/** Active raster layer ignoring lock state — wand only reads pixels. */
 function state_activeRaster(): RasterLayer | null {
   const l = actions.activeLayer();
   return l && l.type === "raster" ? l : null;
 }
 
-/**
- * Stamp a soft brush dab on `layer`, clipped to the current selection
- * (rectangular OR mask-based). Uses a temp canvas + destination-in for mask
- * clipping so freehand/wand selections work.
- *
- * When `maskCanvas` is given the dab targets the layer's mask instead:
- * brushing reveals (paints opaque white), erasing hides (clears alpha).
- */
-function paintStamp(
-  layer: RasterLayer,
-  x: number,
-  y: number,
-  erase: boolean,
-  tool: { brushSize: number; brushHardness: number; brushColor: string },
-  selection: Selection | null,
-  maskCanvas?: HTMLCanvasElement,
-) {
-  const target = maskCanvas ?? layer.canvas;
-  const ctx = target.getContext("2d")!;
-  const r = tool.brushSize / 2;
-  const hardness = tool.brushHardness;
-  const paintColor = maskCanvas ? "#ffffff" : tool.brushColor;
-  const color = erase ? "rgba(0,0,0,1)" : paintColor;
-
-  if (selection?.mask) {
-    // Render the stamp to a temp canvas, mask it, then composite onto layer.
-    const tmp = makeCanvas(target.width, target.height);
-    const tctx = tmp.getContext("2d")!;
-    const grad = tctx.createRadialGradient(x, y, r * hardness, x, y, r);
-    grad.addColorStop(0, color);
-    grad.addColorStop(1, erase ? "rgba(0,0,0,0)" : hexToRgba(paintColor, 0));
-    tctx.fillStyle = grad;
-    tctx.beginPath();
-    tctx.arc(x, y, r, 0, Math.PI * 2);
-    tctx.fill();
-    tctx.globalCompositeOperation = "destination-in";
-    tctx.drawImage(selection.mask, 0, 0);
-
-    ctx.save();
-    ctx.globalCompositeOperation = erase ? "destination-out" : "source-over";
-    ctx.drawImage(tmp, 0, 0);
-    ctx.restore();
-    return;
-  }
-
-  ctx.save();
-  if (selection) {
-    ctx.beginPath();
-    ctx.rect(selection.x, selection.y, selection.w, selection.h);
-    ctx.clip();
-  }
-  const grad = ctx.createRadialGradient(x, y, r * hardness, x, y, r);
-  grad.addColorStop(0, color);
-  grad.addColorStop(1, erase ? "rgba(0,0,0,0)" : hexToRgba(paintColor, 0));
-  ctx.fillStyle = grad;
-  ctx.globalCompositeOperation = erase ? "destination-out" : "source-over";
-  ctx.beginPath();
-  ctx.arc(x, y, r, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
-}
-
-/**
- * Stamp one clone-brush dab at (x, y), copying pixels from the stroke-start
- * snapshot shifted by the stroke's source offset. Soft edge via a radial
- * alpha falloff; clipped to the current selection like the brush.
- */
-function cloneStamp(
-  layer: RasterLayer,
-  source: HTMLCanvasElement,
-  x: number,
-  y: number,
-  offsetX: number,
-  offsetY: number,
-  tool: { brushSize: number; brushHardness: number },
-  selection: Selection | null,
-) {
-  const r = tool.brushSize / 2;
-  const tmp = makeCanvas(layer.canvas.width, layer.canvas.height);
-  const tctx = tmp.getContext("2d")!;
-  // Shift the snapshot so the source pixel lands under the brush.
-  tctx.drawImage(source, offsetX, offsetY);
-  // Keep only a soft disc of it.
-  const grad = tctx.createRadialGradient(x, y, r * tool.brushHardness, x, y, r);
-  grad.addColorStop(0, "rgba(0,0,0,1)");
-  grad.addColorStop(1, "rgba(0,0,0,0)");
-  tctx.globalCompositeOperation = "destination-in";
-  tctx.fillStyle = grad;
-  tctx.beginPath();
-  tctx.arc(x, y, r, 0, Math.PI * 2);
-  tctx.fill();
-  if (selection?.mask) {
-    tctx.drawImage(selection.mask, 0, 0);
-  }
-  const ctx = layer.canvas.getContext("2d")!;
-  ctx.save();
-  if (selection && !selection.mask) {
-    ctx.beginPath();
-    ctx.rect(selection.x, selection.y, selection.w, selection.h);
-    ctx.clip();
-  }
-  ctx.drawImage(tmp, 0, 0);
-  ctx.restore();
-}
-
-function floodFill(
-  canvas: HTMLCanvasElement,
-  x: number,
-  y: number,
-  hex: string,
-  selection: Selection | null,
-  tolerance: number,
-) {
-  if (x < 0 || y < 0 || x >= canvas.width || y >= canvas.height) return;
-  const ctx = canvas.getContext("2d")!;
-  const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const data = img.data;
-  const w = canvas.width;
-  const h = canvas.height;
-  const i0 = (y * w + x) * 4;
-  const target = [data[i0], data[i0 + 1], data[i0 + 2], data[i0 + 3]];
-  const m = /^#?([0-9a-f]{6})$/i.exec(hex);
-  const rgb = m ? parseInt(m[1], 16) : 0;
-  const fill = [(rgb >> 16) & 255, (rgb >> 8) & 255, rgb & 255, 255];
-  if (target.every((v, i) => v === fill[i])) return;
-  const tol = tolerance;
-
-  // Pre-read the selection mask once (if any) for fast per-pixel lookup.
-  let maskData: Uint8ClampedArray | null = null;
-  if (selection?.mask) {
-    maskData = selection.mask.getContext("2d")!.getImageData(0, 0, w, h).data;
-  }
-  const inSel = (px: number, py: number) => {
-    if (!selection) return true;
-    if (maskData) return maskData[(py * w + px) * 4 + 3] > 0;
-    return (
-      px >= selection.x &&
-      py >= selection.y &&
-      px < selection.x + selection.w &&
-      py < selection.y + selection.h
-    );
-  };
-
-  const stack: number[] = [x, y];
-  while (stack.length) {
-    const py = stack.pop()!;
-    const px = stack.pop()!;
-    if (px < 0 || py < 0 || px >= w || py >= h) continue;
-    if (!inSel(px, py)) continue;
-    const idx = (py * w + px) * 4;
-    if (
-      Math.abs(data[idx] - target[0]) > tol ||
-      Math.abs(data[idx + 1] - target[1]) > tol ||
-      Math.abs(data[idx + 2] - target[2]) > tol ||
-      Math.abs(data[idx + 3] - target[3]) > tol
-    )
-      continue;
-    data[idx] = fill[0];
-    data[idx + 1] = fill[1];
-    data[idx + 2] = fill[2];
-    data[idx + 3] = fill[3];
-    stack.push(px + 1, py, px - 1, py, px, py + 1, px, py - 1);
-  }
-  ctx.putImageData(img, 0, 0);
-}
-
 function sampleColor(layers: Layer[], x: number, y: number, w: number, h: number): string | null {
+  if (x < 0 || y < 0 || x >= w || y >= h) return null;
   const flat = compositeDoc({ width: w, height: h, layers, activeLayerId: null, selection: null });
   const d = flat.getContext("2d")!.getImageData(x, y, 1, 1).data;
   return "#" + [d[0], d[1], d[2]].map((v) => v.toString(16).padStart(2, "0")).join("");

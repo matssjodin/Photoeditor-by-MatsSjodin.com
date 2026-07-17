@@ -147,24 +147,35 @@ export function drawGradient(
  * compensating for the layer's offset and clipping to the selection
  * (rectangular or mask-based). Rotation/scale are intentionally ignored,
  * matching the brush/fill tools.
+ *
+ * `opts.composite` sets the final compositing mode (e.g. "destination-out"
+ * for erasing); `opts.target` redirects the draw onto another layer-aligned
+ * canvas (the layer's mask) instead of its pixels.
  */
 export function clippedLayerDraw(
   layer: RasterLayer,
   selection: Selection | null,
   draw: (ctx: CanvasRenderingContext2D) => void,
+  opts: { composite?: GlobalCompositeOperation; target?: HTMLCanvasElement } = {},
 ) {
+  const target = opts.target ?? layer.canvas;
+  const composite = opts.composite ?? "source-over";
   if (selection?.mask) {
-    const tmp = makeCanvas(layer.canvas.width, layer.canvas.height);
+    const tmp = makeCanvas(target.width, target.height);
     const tctx = tmp.getContext("2d")!;
     tctx.translate(-layer.x, -layer.y);
     draw(tctx);
     tctx.setTransform(1, 0, 0, 1, 0, 0);
     tctx.globalCompositeOperation = "destination-in";
     tctx.drawImage(selection.mask, -layer.x, -layer.y);
-    layer.canvas.getContext("2d")!.drawImage(tmp, 0, 0);
+    const ctx = target.getContext("2d")!;
+    ctx.save();
+    ctx.globalCompositeOperation = composite;
+    ctx.drawImage(tmp, 0, 0);
+    ctx.restore();
     return;
   }
-  const ctx = layer.canvas.getContext("2d")!;
+  const ctx = target.getContext("2d")!;
   ctx.save();
   ctx.translate(-layer.x, -layer.y);
   if (selection) {
@@ -172,6 +183,172 @@ export function clippedLayerDraw(
     ctx.rect(selection.x, selection.y, selection.w, selection.h);
     ctx.clip();
   }
+  ctx.globalCompositeOperation = composite;
   draw(ctx);
   ctx.restore();
+}
+
+/**
+ * Stamp a soft brush dab at doc-space (x, y), clipped to the selection.
+ * When `maskCanvas` is given the dab targets the layer's mask instead:
+ * brushing reveals (paints opaque white), erasing hides (clears alpha).
+ */
+export function paintStamp(
+  layer: RasterLayer,
+  x: number,
+  y: number,
+  erase: boolean,
+  tool: { brushSize: number; brushHardness: number; brushColor: string },
+  selection: Selection | null,
+  maskCanvas?: HTMLCanvasElement,
+) {
+  const r = tool.brushSize / 2;
+  const paintColor = maskCanvas ? "#ffffff" : tool.brushColor;
+  const color = erase ? "rgba(0,0,0,1)" : paintColor;
+  clippedLayerDraw(
+    layer,
+    selection,
+    (ctx) => {
+      const grad = ctx.createRadialGradient(x, y, r * tool.brushHardness, x, y, r);
+      grad.addColorStop(0, color);
+      grad.addColorStop(1, erase ? "rgba(0,0,0,0)" : hexToRgba(paintColor, 0));
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    },
+    { composite: erase ? "destination-out" : "source-over", target: maskCanvas },
+  );
+}
+
+/**
+ * Stamp one clone-brush dab at doc-space (x, y), copying pixels from the
+ * stroke-start snapshot (`source`, in layer space) shifted by the stroke's
+ * source offset. Soft edge via a radial alpha falloff; clipped like the brush.
+ */
+export function cloneStamp(
+  layer: RasterLayer,
+  source: HTMLCanvasElement,
+  x: number,
+  y: number,
+  offsetX: number,
+  offsetY: number,
+  tool: { brushSize: number; brushHardness: number },
+  selection: Selection | null,
+) {
+  const r = tool.brushSize / 2;
+  // The dab in layer space; the source shift is translation-invariant.
+  const lx = x - layer.x;
+  const ly = y - layer.y;
+  const tmp = makeCanvas(layer.canvas.width, layer.canvas.height);
+  const tctx = tmp.getContext("2d")!;
+  // Shift the snapshot so the source pixel lands under the brush.
+  tctx.drawImage(source, offsetX, offsetY);
+  // Keep only a soft disc of it.
+  const grad = tctx.createRadialGradient(lx, ly, r * tool.brushHardness, lx, ly, r);
+  grad.addColorStop(0, "rgba(0,0,0,1)");
+  grad.addColorStop(1, "rgba(0,0,0,0)");
+  tctx.globalCompositeOperation = "destination-in";
+  tctx.fillStyle = grad;
+  tctx.beginPath();
+  tctx.arc(lx, ly, r, 0, Math.PI * 2);
+  tctx.fill();
+  if (selection?.mask) {
+    tctx.drawImage(selection.mask, -layer.x, -layer.y);
+  }
+  const ctx = layer.canvas.getContext("2d")!;
+  ctx.save();
+  if (selection && !selection.mask) {
+    ctx.beginPath();
+    ctx.rect(selection.x - layer.x, selection.y - layer.y, selection.w, selection.h);
+    ctx.clip();
+  }
+  ctx.drawImage(tmp, 0, 0);
+  ctx.restore();
+}
+
+/**
+ * Flood-fill the layer from the doc-space seed (x, y) with `hex`, within
+ * `tolerance` per channel, confined to the selection (doc space).
+ */
+export function floodFill(
+  layer: RasterLayer,
+  x: number,
+  y: number,
+  hex: string,
+  selection: Selection | null,
+  tolerance: number,
+) {
+  const canvas = layer.canvas;
+  const ox = Math.round(layer.x);
+  const oy = Math.round(layer.y);
+  const sx = Math.floor(x) - ox;
+  const sy = Math.floor(y) - oy;
+  if (sx < 0 || sy < 0 || sx >= canvas.width || sy >= canvas.height) return;
+  const ctx = canvas.getContext("2d")!;
+  const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const data = img.data;
+  const w = canvas.width;
+  const h = canvas.height;
+  const i0 = (sy * w + sx) * 4;
+  const target = [data[i0], data[i0 + 1], data[i0 + 2], data[i0 + 3]];
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex);
+  const rgb = m ? parseInt(m[1], 16) : 0;
+  const fill = [(rgb >> 16) & 255, (rgb >> 8) & 255, rgb & 255, 255];
+  if (target.every((v, i) => v === fill[i])) return;
+  const tol = tolerance;
+
+  // Pre-read the selection mask once (if any) for fast per-pixel lookup.
+  // The mask is doc-sized; pixels are layer-space, so translate via ox/oy.
+  let maskData: Uint8ClampedArray | null = null;
+  let maskW = 0;
+  let maskH = 0;
+  if (selection?.mask) {
+    maskW = selection.mask.width;
+    maskH = selection.mask.height;
+    maskData = selection.mask.getContext("2d")!.getImageData(0, 0, maskW, maskH).data;
+  }
+  const inSel = (px: number, py: number) => {
+    if (!selection) return true;
+    const dx = px + ox;
+    const dy = py + oy;
+    if (maskData) {
+      if (dx < 0 || dy < 0 || dx >= maskW || dy >= maskH) return false;
+      return maskData[(dy * maskW + dx) * 4 + 3] > 0;
+    }
+    return (
+      dx >= selection.x &&
+      dy >= selection.y &&
+      dx < selection.x + selection.w &&
+      dy < selection.y + selection.h
+    );
+  };
+
+  // Track visited pixels so the walk terminates even when the fill colour is
+  // itself within tolerance of the target (already-filled pixels re-match).
+  const visited = new Uint8Array(w * h);
+  const stack: number[] = [sx, sy];
+  while (stack.length) {
+    const py = stack.pop()!;
+    const px = stack.pop()!;
+    if (px < 0 || py < 0 || px >= w || py >= h) continue;
+    const vi = py * w + px;
+    if (visited[vi]) continue;
+    visited[vi] = 1;
+    if (!inSel(px, py)) continue;
+    const idx = (py * w + px) * 4;
+    if (
+      Math.abs(data[idx] - target[0]) > tol ||
+      Math.abs(data[idx + 1] - target[1]) > tol ||
+      Math.abs(data[idx + 2] - target[2]) > tol ||
+      Math.abs(data[idx + 3] - target[3]) > tol
+    )
+      continue;
+    data[idx] = fill[0];
+    data[idx + 1] = fill[1];
+    data[idx + 2] = fill[2];
+    data[idx + 3] = fill[3];
+    stack.push(px + 1, py, px - 1, py, px, py + 1, px, py - 1);
+  }
+  ctx.putImageData(img, 0, 0);
 }

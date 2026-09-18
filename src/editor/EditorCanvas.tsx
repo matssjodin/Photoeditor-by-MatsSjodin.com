@@ -261,6 +261,8 @@ export function EditorCanvas() {
             target.tagName === "SELECT" ||
             target.isContentEditable));
 
+      if (typing || e.defaultPrevented || e.isComposing) return;
+
       if (e.code === "Space" && !typing) {
         setSpaceDown(true);
         e.preventDefault();

@@ -36,6 +36,10 @@ describe("buildFilterString", () => {
     expect(buildFilterString(adj({ saturation: -50 }))).toContain("saturate(0.5)");
   });
 
+  test("combined negative brightness and exposure never produce an invalid CSS filter", () => {
+    expect(buildFilterString(adj({ brightness: -100, exposure: -100 }))).toContain("brightness(0)");
+  });
+
   test("hue rotation passes through in degrees, including negatives", () => {
     expect(buildFilterString(adj({ hue: 180 }))).toContain("hue-rotate(180deg)");
     expect(buildFilterString(adj({ hue: -90 }))).toContain("hue-rotate(-90deg)");

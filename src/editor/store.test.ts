@@ -89,6 +89,21 @@ describe("layer operations", () => {
 });
 
 describe("history: structural undo/redo", () => {
+  test("undo and redo restore the active layer for additions and deletions", () => {
+    const backgroundId = getState().doc.activeLayerId;
+    actions.addLayer();
+    const addedId = getState().doc.activeLayerId!;
+    actions.undo();
+    expect(getState().doc.activeLayerId).toBe(backgroundId);
+    actions.redo();
+    expect(getState().doc.activeLayerId).toBe(addedId);
+    actions.deleteLayer(addedId);
+    actions.undo();
+    expect(getState().doc.activeLayerId).toBe(addedId);
+    actions.redo();
+    expect(getState().doc.activeLayerId).toBe(backgroundId);
+  });
+
   test("undo/redo round-trips an add-layer", () => {
     actions.addLayer("raster");
     expect(getState().doc.layers).toHaveLength(2);
@@ -120,6 +135,32 @@ describe("history: structural undo/redo", () => {
 });
 
 describe("history: raster pixel undo/redo", () => {
+  test("undoing applied adjustments restores both pixels and adjustment settings", () => {
+    const layer = activeRaster();
+    actions.updateAdjustments(layer.id, { invert: 100 });
+    const original = pixel(layer, 5, 5);
+    actions.bakeAdjustments(layer.id);
+    const baked = pixel(layer, 5, 5);
+    expect(baked).not.toEqual(original);
+    expect(layer.adjustments.invert).toBe(0);
+    actions.undo();
+    expect(pixel(layer, 5, 5)).toEqual(original);
+    expect(layer.adjustments.invert).toBe(100);
+    actions.redo();
+    expect(pixel(layer, 5, 5)).toEqual(baked);
+    expect(layer.adjustments.invert).toBe(0);
+  });
+
+  test("undoing paint preserves adjustment changes made after the stroke", () => {
+    const layer = activeRaster();
+    actions.recordRaster("Paint", layer.id, () => {
+      layer.canvas.getContext("2d")!.clearRect(0, 0, 1, 1);
+    });
+    actions.updateAdjustments(layer.id, { brightness: 25 });
+    actions.undo();
+    expect(layer.adjustments.brightness).toBe(25);
+  });
+
   test("recordRaster snapshots before/after and round-trips", () => {
     const layer = activeRaster();
     expect(pixel(layer, 5, 5)[0]).toBe(0); // black background

@@ -115,7 +115,7 @@ export interface DocState {
 
 export function buildFilterString(a: Adjustments): string {
   // Map our 0-based ranges into CSS filter values.
-  const brightness = 1 + a.brightness / 100 + a.exposure / 100;
+  const brightness = Math.max(0, 1 + a.brightness / 100 + a.exposure / 100);
   const contrast = 1 + a.contrast / 100;
   const saturate = 1 + a.saturation / 100;
   return [

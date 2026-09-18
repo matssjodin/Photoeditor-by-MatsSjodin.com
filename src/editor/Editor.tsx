@@ -25,24 +25,35 @@ export function Editor() {
   const s = useEditor();
   const [dragOver, setDragOver] = useState(false);
   const [restorable, setRestorable] = useState<ProjectFile | null>(null);
+  const [autosaveReady, setAutosaveReady] = useState(false);
+  const [restoring, setRestoring] = useState(false);
   const hasDoc = s.doc.layers.length > 0;
 
   // Initialize an empty document on first mount so the user sees something,
   // and offer to restore the last autosaved session if one exists.
   useEffect(() => {
+    let cancelled = false;
     if (s.doc.layers.length === 0) actions.newDocument(1200, 800, "#ffffff");
     loadAutosave()
       .then((file) => {
+        if (cancelled) return;
         if (file && file.layers.length > 0) setRestorable(file);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setAutosaveReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Autosave to IndexedDB, debounced after the last change.
   const autosaveTimer = useRef<number | null>(null);
   useEffect(() => {
-    if (typeof window === "undefined" || s.doc.layers.length === 0) return;
+    // Preserve the previous session until the user restores or dismisses it.
+    if (typeof window === "undefined" || !autosaveReady || restorable) return;
     if (autosaveTimer.current) window.clearTimeout(autosaveTimer.current);
     autosaveTimer.current = window.setTimeout(() => {
       try {
@@ -54,7 +65,7 @@ export function Editor() {
     return () => {
       if (autosaveTimer.current) window.clearTimeout(autosaveTimer.current);
     };
-  }, [s.version, s.doc.layers.length]);
+  }, [s.version, autosaveReady, restorable]);
 
   useEffect(() => {
     const prevent = (e: DragEvent) => {
@@ -126,22 +137,27 @@ export function Editor() {
               <button
                 onClick={async () => {
                   const file = restorable;
-                  setRestorable(null);
+                  setRestoring(true);
                   try {
                     actions.loadProject(await deserializeDoc(file));
+                    setRestorable(null);
                   } catch {
                     toast.error("Couldn't restore the previous session.");
+                  } finally {
+                    setRestoring(false);
                   }
                 }}
+                disabled={restoring}
                 className="rounded bg-primary px-2.5 py-1 text-xs text-primary-foreground hover:opacity-90"
               >
                 Restore
               </button>
               <button
-                onClick={() => {
+                onClick={async () => {
+                  await clearAutosave().catch(() => {});
                   setRestorable(null);
-                  void clearAutosave().catch(() => {});
                 }}
+                disabled={restoring}
                 aria-label="Dismiss"
                 className="text-muted-foreground hover:text-foreground"
               >

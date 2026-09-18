@@ -60,6 +60,8 @@ interface HistoryEntry {
   propsAfter?: Partial<Layer>;
   layersBefore?: Layer[];
   layersAfter?: Layer[];
+  activeLayerBefore?: string | null;
+  activeLayerAfter?: string | null;
   selectionBefore?: Selection | null;
   selectionAfter?: Selection | null;
   // Document dimensions before/after structural ops (resize, crop).
@@ -566,6 +568,7 @@ export const actions = {
   _structural(label: string, mutate: () => void) {
     const layersBefore = cloneLayers(state.doc.layers);
     const selectionBefore = state.doc.selection;
+    const activeLayerBefore = state.doc.activeLayerId;
     const wBefore = state.doc.width;
     const hBefore = state.doc.height;
     mutate();
@@ -574,6 +577,8 @@ export const actions = {
       label,
       layersBefore,
       layersAfter: cloneLayers(state.doc.layers),
+      activeLayerBefore,
+      activeLayerAfter: state.doc.activeLayerId,
       selectionBefore,
       selectionAfter: state.doc.selection,
       sizeBefore: { w: wBefore, h: hBefore },
@@ -589,11 +594,25 @@ export const actions = {
     if (!l || l.type !== "raster") return;
     const before = snapshotCanvas(l.canvas);
     const maskBefore = l.mask ? snapshotCanvas(l.mask) : undefined;
+    const adjustmentsBefore = { ...l.adjustments };
     mutate();
     const updated = state.doc.layers.find((x) => x.id === layerId) as RasterLayer;
     const after = snapshotCanvas(updated.canvas);
     const maskAfter = updated.mask ? snapshotCanvas(updated.mask) : undefined;
-    pushHistory({ kind: "raster", label, layerId, before, after, maskBefore, maskAfter });
+    const adjustmentsChanged = (Object.keys(adjustmentsBefore) as (keyof Adjustments)[]).some(
+      (key) => adjustmentsBefore[key] !== updated.adjustments[key],
+    );
+    pushHistory({
+      kind: "raster",
+      label,
+      layerId,
+      before,
+      after,
+      maskBefore,
+      maskAfter,
+      propsBefore: adjustmentsChanged ? { adjustments: adjustmentsBefore } : undefined,
+      propsAfter: adjustmentsChanged ? { adjustments: { ...updated.adjustments } } : undefined,
+    });
     emit();
   },
 
@@ -694,6 +713,8 @@ function applyHistory(e: HistoryEntry, which: "before" | "after") {
   if (e.kind === "raster" && e.layerId) {
     const l = state.doc.layers.find((x) => x.id === e.layerId) as RasterLayer | undefined;
     if (!l) return;
+    const props = which === "before" ? e.propsBefore : e.propsAfter;
+    if (props?.adjustments) l.adjustments = { ...props.adjustments };
     const data = which === "before" ? e.before : e.after;
     if (data) {
       if (l.canvas.width !== data.width || l.canvas.height !== data.height) {
@@ -717,6 +738,8 @@ function applyHistory(e: HistoryEntry, which: "before" | "after") {
   } else if (e.kind === "structural") {
     const layers = which === "before" ? e.layersBefore! : e.layersAfter!;
     state.doc.layers = cloneLayers(layers);
+    state.doc.activeLayerId =
+      (which === "before" ? e.activeLayerBefore : e.activeLayerAfter) ?? null;
     state.doc.selection = (which === "before" ? e.selectionBefore : e.selectionAfter) ?? null;
     const size = which === "before" ? e.sizeBefore : e.sizeAfter;
     if (size) {

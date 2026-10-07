@@ -118,6 +118,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           ]
         : []),
       {
+        src: "https://analytics.aivent.se/script.js",
+        defer: true,
+        "data-website-id": "1ed98131-f6f9-4294-9390-3e7a8333a74c",
+      },
+      {
         type: "application/ld+json",
         children: JSON.stringify({
           "@context": "https://schema.org",

@@ -79,12 +79,14 @@ npm run dev        # start the dev server (http://localhost:8080)
 
 ## Environment variables
 
-**None are required.** The app has no backend or secrets. One optional variable enables
-privacy-friendly analytics; see [`.env.example`](./.env.example):
+**None are required.** The app has no backend or secrets. Page views are always counted with the
+cookieless, self-hosted [Umami](https://umami.is) script at `analytics.aivent.se` (loaded in
+`src/routes/__root.tsx`). One optional variable additionally enables Plausible; see
+[`.env.example`](./.env.example):
 
-| Variable                | Effect                                                                                                                                                  |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `VITE_PLAUSIBLE_DOMAIN` | When set, injects the cookieless [Plausible](https://plausible.io) script for page-view analytics. Unset = no analytics, no third-party call (default). |
+| Variable                | Effect                                                                                                                                  |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `VITE_PLAUSIBLE_DOMAIN` | When set, injects the cookieless [Plausible](https://plausible.io) script for page-view analytics. Unset = no Plausible call (default). |
 
 If you add server logic later, follow the patterns in `src/lib/config.server.ts`
 (server-only `*.server.ts` modules) and expose only `VITE_`-prefixed values to the client.

@@ -25,10 +25,10 @@ const CSP = [
   "frame-ancestors 'none'",
   "form-action 'self'",
   "img-src 'self' data: blob:",
-  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://plausible.io https://cdn.jsdelivr.net",
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://plausible.io https://cdn.jsdelivr.net https://analytics.aivent.se",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com data:",
-  "connect-src 'self' https://plausible.io https://cdn.jsdelivr.net https://storage.googleapis.com",
+  "connect-src 'self' https://analytics.aivent.se https://plausible.io https://cdn.jsdelivr.net https://storage.googleapis.com",
   "worker-src 'self' blob:",
 ].join("; ");
 
